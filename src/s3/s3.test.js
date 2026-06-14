@@ -24,7 +24,13 @@ describe('S3', () => {
     });
 
     it('uses HMAC credentials when accessKeyId and secretAccessKey are provided', () => {
-      new S3WithSpy({ accessKeyId: 'test-key', secretAccessKey: 'test-secret', endpoint: 'http://minio:9000', bucket: 'test-bucket', plugins: [] });
+      new S3WithSpy({
+        accessKeyId: 'test-key',
+        secretAccessKey: 'test-secret',
+        endpoint: 'http://minio:9000',
+        bucket: 'test-bucket',
+        plugins: [],
+      });
 
       assert.strictEqual(capturedConfig.credentials.accessKeyId, 'test-key');
       assert.strictEqual(capturedConfig.credentials.secretAccessKey, 'test-secret');
@@ -65,8 +71,16 @@ describe('S3', () => {
 
   describe('getFilePathsFromPrefixes', () => {
     it('returns a list of file paths from S3 listing for each date', async () => {
-      const s3 = new S3({ accessKeyId: '123', secretAccessKey: 'secret', endpoint: 'http://s3.com', bucket: 'vpc-objects', plugins: [] });
-      const actual = await s3.getFilePathsFromPrefixes('2005-01-17T00:00:00Z', '2005-01-19T00:00:00Z', { file: '/path/to/file' });
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'vpc-objects',
+        plugins: [],
+      });
+      const actual = await s3.getFilePathsFromPrefixes('2005-01-17T00:00:00Z', '2005-01-19T00:00:00Z', {
+        file: '/path/to/file',
+      });
 
       assert.deepStrictEqual(actual.length, 2);
     });
@@ -88,8 +102,16 @@ describe('S3', () => {
       }
 
       const S3Custom = await getS3withMocks({ s3ClientClass: S3ClientWithNonMatching });
-      const s3 = new S3Custom({ accessKeyId: '123', secretAccessKey: 'secret', endpoint: 'http://s3.com', bucket: 'vpc-objects', plugins: [] });
-      const actual = await s3.getFilePathsFromPrefixes('2005-01-17T00:00:00Z', '2005-01-19T00:00:00Z', { file: '/path/to/file' });
+      const s3 = new S3Custom({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'vpc-objects',
+        plugins: [],
+      });
+      const actual = await s3.getFilePathsFromPrefixes('2005-01-17T00:00:00Z', '2005-01-19T00:00:00Z', {
+        file: '/path/to/file',
+      });
 
       assert.deepStrictEqual(actual.length, 2);
       assert.deepEqual(actual[0].file, '/path/to/file1');
@@ -100,7 +122,13 @@ describe('S3', () => {
 
   describe('createPrefixes', () => {
     it('returns a list of prefixes by day to use for listing files in a given date range', () => {
-      const s3 = new S3({ accessKeyId: '123', secretAccessKey: 'secret', endpoint: 'http://s3.com', bucket: 'vpc-objects', plugins: [] });
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'vpc-objects',
+        plugins: [],
+      });
       const pattern = 'year={yyyy}/month={MM}/day={dd}/my-file_{yyyy}{MM}{dd}{hh}{mm}{ss}';
       const actual = s3.createPrefixes('2005-01-17T00:00:00Z', '2005-01-19T00:00:00Z', pattern);
 
@@ -112,7 +140,13 @@ describe('S3', () => {
     });
 
     it('returns a list of prefixes by hour to use for listing files in a given date range', () => {
-      const s3 = new S3({ accessKeyId: '123', secretAccessKey: 'secret', endpoint: 'http://s3.com', bucket: 'vpc-objects', plugins: [] });
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'vpc-objects',
+        plugins: [],
+      });
       const pattern = 'year={yyyy}/month={MM}/day={dd}/hour={hh}/my-file_{yyyy}{MM}{dd}{hh}{mm}{ss}';
       const actual = s3.createPrefixes('2005-01-17T23:00:00Z', '2005-01-18T06:07:00Z', pattern);
 
@@ -124,21 +158,41 @@ describe('S3', () => {
     });
 
     it('returns a prefix up to the first glob', () => {
-      const s3 = new S3({ accessKeyId: '123', secretAccessKey: 'secret', endpoint: 'http://s3.com', bucket: 'vpc-objects', plugins: [] });
-      const pattern = 'obs-vpc-objects/vpc_objects_2rep/version=v1.0.0/env=production/year=2025/month=01/day=08/hour=*/minute=00/accounts_*.parquet';
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'vpc-objects',
+        plugins: [],
+      });
+      const pattern =
+        'obs-vpc-objects/vpc_objects_2rep/version=v1.0.0/env=production/year=2025/month=01/day=08/hour=*/minute=00/accounts_*.parquet';
       const actual = s3.createPrefixes('2005-01-17T23:00:00Z', '2005-01-18T06:07:00Z', pattern);
 
       assert.deepEqual(actual.length, 1);
-      assert.deepEqual(actual[0], 'obs-vpc-objects/vpc_objects_2rep/version=v1.0.0/env=production/year=2025/month=01/day=08/hour=');
+      assert.deepEqual(
+        actual[0],
+        'obs-vpc-objects/vpc_objects_2rep/version=v1.0.0/env=production/year=2025/month=01/day=08/hour=',
+      );
     });
 
     it('returns the full file path if no date tokens or globs are found', () => {
-      const s3 = new S3({ accessKeyId: '123', secretAccessKey: 'secret', endpoint: 'http://s3.com', bucket: 'vpc-objects', plugins: [] });
-      const pattern = 'obs-vpc-objects/vpc_objects_2rep/version=v1.0.0/env=production/year=2025/month=01/day=08/hour=22/minute=00/accounts.parquet';
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'vpc-objects',
+        plugins: [],
+      });
+      const pattern =
+        'obs-vpc-objects/vpc_objects_2rep/version=v1.0.0/env=production/year=2025/month=01/day=08/hour=22/minute=00/accounts.parquet';
       const actual = s3.createPrefixes('2005-01-17T23:00:00Z', '2005-01-18T06:07:00Z', pattern);
 
       assert.deepEqual(actual.length, 1);
-      assert.deepEqual(actual[0], 'obs-vpc-objects/vpc_objects_2rep/version=v1.0.0/env=production/year=2025/month=01/day=08/hour=22/minute=00/accounts.parquet');
+      assert.deepEqual(
+        actual[0],
+        'obs-vpc-objects/vpc_objects_2rep/version=v1.0.0/env=production/year=2025/month=01/day=08/hour=22/minute=00/accounts.parquet',
+      );
     });
   });
 
@@ -153,7 +207,14 @@ describe('S3', () => {
       }
       listingCache.set('bucket/test-cached-prefix', ['file/path']);
       const S3Cache = await getS3withMocks({ s3ClientClass: S3ClientCacheTest });
-      const s3 = new S3Cache({ accessKeyId: '123', secretAccessKey: 'secret', endpoint: 'http://endpoint', bucket: 'bucket', listingCache, plugins: [] });
+      const s3 = new S3Cache({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://endpoint',
+        bucket: 'bucket',
+        listingCache,
+        plugins: [],
+      });
       await s3.listFiles('test-cached-prefix');
 
       assert.deepEqual(sendSpy.mock.callCount(), 0);
@@ -162,7 +223,13 @@ describe('S3', () => {
 
   describe('getTodayPrefix', () => {
     it('returns the prefix used for todays date', () => {
-      const s3 = new S3({ accessKeyId: '123', secretAccessKey: 'secret', endpoint: 'http://s3.com', bucket: 'vpc-objects', plugins: [] });
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'vpc-objects',
+        plugins: [],
+      });
       const now = new Date();
       const pattern = 'year={yyyy}/month={MM}/day={dd}/my-file_{yyyy}{MM}{dd}{hh}{mm}{ss}';
       const expected = 'year={yyyy}/month={MM}/day={dd}'
@@ -183,7 +250,12 @@ async function* asyncBody() {
 class DefaultS3Client {
   async send(command) {
     if (command.constructor.name === 'ListObjectsV2Command') {
-      return { Contents: [{ Key: '/path/to/file1', Size: 0 }, { Key: '/path/to/file2', Size: 0 }] };
+      return {
+        Contents: [
+          { Key: '/path/to/file1', Size: 0 },
+          { Key: '/path/to/file2', Size: 0 },
+        ],
+      };
     }
     return { Body: asyncBody() };
   }
@@ -202,10 +274,14 @@ function getS3withMocks({
     '@aws-sdk/client-s3': {
       S3Client: s3ClientClass,
       ListObjectsV2Command: class ListObjectsV2Command {
-        constructor(params) { Object.assign(this, params); }
+        constructor(params) {
+          Object.assign(this, params);
+        }
       },
       GetObjectCommand: class GetObjectCommand {
-        constructor(params) { Object.assign(this, params); }
+        constructor(params) {
+          Object.assign(this, params);
+        }
       },
     },
     '../utils/logger.js': {

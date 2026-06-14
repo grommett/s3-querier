@@ -24,7 +24,9 @@ describe('date-regex', () => {
     });
 
     it('replaces hour, minute, and second tokens', () => {
-      const result = removeFileDatePatterns('year={yyyy}/month={MM}/day={dd}/hour={hh}/minute={mm}/second={ss}/f.parquet');
+      const result = removeFileDatePatterns(
+        'year={yyyy}/month={MM}/day={dd}/hour={hh}/minute={mm}/second={ss}/f.parquet',
+      );
       assert.strictEqual(result, 'year=*/month=*/day=*/hour=*/minute=*/second=*/f.parquet');
     });
 

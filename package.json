@@ -47,11 +47,15 @@
     "pino": "^9.12.0",
     "tree-sitter": "^0.21.1"
   },
+  "lint-staged": {
+    "src/**/*.js": ["prettier --write", "eslint"]
+  },
   "devDependencies": {
     "c8": "^11.0.0",
     "eslint": "^8.50.0",
     "esmock": "^2.7.5",
     "husky": "^9.1.7",
+    "lint-staged": "^17.0.7",
     "prettier": "^3.0.3"
   }
 }

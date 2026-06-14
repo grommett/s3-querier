@@ -1,5 +1,9 @@
 import { removeFileDatePatterns } from '../../utils/date-regex/date-regex.js';
-import { removeFileSettingTokens, removeDoubleFwdSlash, removeCacheSettings } from '../../utils/file-settings/file-settings.js';
+import {
+  removeFileSettingTokens,
+  removeDoubleFwdSlash,
+  removeCacheSettings,
+} from '../../utils/file-settings/file-settings.js';
 
 export default class QueryFinalizerPlugin {
   name = 'CorePlugin';
@@ -32,6 +36,6 @@ export default class QueryFinalizerPlugin {
       .replace(/\./g, '\\.')
       .replace(/\{/g, '\\{')
       .replace(/\}/g, '\\}')
-      .replace(/\+/g, '\\+')
+      .replace(/\+/g, '\\+');
   }
 }

@@ -1,8 +1,5 @@
-import {
-  eachDayOfInterval,
-  eachHourOfInterval,
-} from 'date-fns';
-import { yyyy, MM, dd, hh, mm, ss } from '../date-regex/date-regex.js'
+import { eachDayOfInterval, eachHourOfInterval } from 'date-fns';
+import { yyyy, MM, dd, hh, mm, ss } from '../date-regex/date-regex.js';
 /**
  * Give a string with date patterns replaces patterns with actual data values
  *

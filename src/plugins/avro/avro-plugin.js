@@ -17,9 +17,10 @@ class AvroPlugin extends QueryParserPlugin {
   }
 
   getFiles({ endpoint, defaultBucket, query }) {
-    return super.getFiles({ endpoint, defaultBucket, query })
-      .filter(setting => AVRO_EXTENSION.test(setting.file))
-      .map(setting => ({ ...setting, sqlFileReference: setting.file.replace(/\.avro/gi, '.json') }));
+    return super
+      .getFiles({ endpoint, defaultBucket, query })
+      .filter((setting) => AVRO_EXTENSION.test(setting.file))
+      .map((setting) => ({ ...setting, sqlFileReference: setting.file.replace(/\.avro/gi, '.json') }));
   }
 
   /**
@@ -35,7 +36,7 @@ class AvroPlugin extends QueryParserPlugin {
     return new Promise((resolve, reject) => {
       const jsonFile = file.replace('.avro', '.json');
       fileExists(jsonFile)
-        .then(exists => {
+        .then((exists) => {
           if (exists) return resolve(jsonFile);
           const fileStream = createWriteStream(jsonFile);
           avro.createFileDecoder(file).pipe(fileStream);

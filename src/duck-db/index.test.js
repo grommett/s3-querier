@@ -15,13 +15,16 @@ describe('duckdb', () => {
                     runAndReadAll() {
                       return Promise.resolve({
                         getColumnsJS() {
-                          return [[0, 0, 0], [1, 1, 1]];
-                        }
-                      })
-                    }
-                  })
-                }
-              })
+                          return [
+                            [0, 0, 0],
+                            [1, 1, 1],
+                          ];
+                        },
+                      });
+                    },
+                  });
+                },
+              });
             },
           },
         },
@@ -33,9 +36,11 @@ describe('duckdb', () => {
       });
 
       const actual = await query(`select * from table;`);
-      assert.deepStrictEqual(actual, [[0, 0, 0], [1, 1, 1]]);
+      assert.deepStrictEqual(actual, [
+        [0, 0, 0],
+        [1, 1, 1],
+      ]);
     });
-
 
     it('returns row-based data when format is set to row', async () => {
       const { query } = await esmock.strict('./index.js', {
@@ -53,12 +58,12 @@ describe('duckdb', () => {
                             { id: 2, name: 'Bob', age: 30 },
                             { id: 3, name: 'Charlie', age: 35 },
                           ];
-                        }
-                      })
-                    }
-                  })
-                }
-              })
+                        },
+                      });
+                    },
+                  });
+                },
+              });
             },
           },
         },
@@ -90,12 +95,12 @@ describe('duckdb', () => {
                       return Promise.resolve({
                         getRowObjectsJS() {
                           return [];
-                        }
-                      })
-                    }
-                  })
-                }
-              })
+                        },
+                      });
+                    },
+                  });
+                },
+              });
             },
           },
         },
@@ -122,12 +127,12 @@ describe('duckdb', () => {
                       return Promise.resolve({
                         getColumnsJS() {
                           return [];
-                        }
-                      })
-                    }
-                  })
-                }
-              })
+                        },
+                      });
+                    },
+                  });
+                },
+              });
             },
           },
         },
@@ -150,9 +155,9 @@ describe('duckdb', () => {
             create() {
               return Promise.resolve({
                 connect() {
-                  throw new Error('o_0')
-                }
-              })
+                  throw new Error('o_0');
+                },
+              });
             },
           },
         },
@@ -164,7 +169,7 @@ describe('duckdb', () => {
       });
       try {
         await query(`select * from table;`);
-      } catch(e) {
+      } catch (e) {
         assert.deepStrictEqual(loggerErrorSpy.mock.callCount(), 1);
       }
     });

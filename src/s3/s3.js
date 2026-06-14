@@ -8,7 +8,17 @@ import { regexFromPattern } from '../utils/date-regex/date-regex.js';
 import { buildIbmIamClient } from './auth/ibm-iam-client.js';
 
 export default class S3 {
-  constructor({ apiKey, accessKeyId, secretAccessKey, endpoint, region = 'us-east-1', bucket, mount = '.', listingCache, plugins }) {
+  constructor({
+    apiKey,
+    accessKeyId,
+    secretAccessKey,
+    endpoint,
+    region = 'us-east-1',
+    bucket,
+    mount = '.',
+    listingCache,
+    plugins,
+  }) {
     this.bucket = bucket;
     this.s3 = buildS3Client({ apiKey, accessKeyId, secretAccessKey, endpoint, region });
     this.mount = mount;

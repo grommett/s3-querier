@@ -25,7 +25,9 @@ describe('buildIbmIamClient', () => {
       },
       './ibm-iam-token-manager.js': {
         IbmIamTokenManager: class MockIbmIamTokenManager {
-          async getToken() { return 'mock-ibm-token'; }
+          async getToken() {
+            return 'mock-ibm-token';
+          }
         },
       },
     }));

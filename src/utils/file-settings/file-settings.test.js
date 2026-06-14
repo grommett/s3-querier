@@ -62,7 +62,7 @@ describe('file-settings', () => {
         endpoint: 'http://us-east.com',
         bucket: 'obs-vpc-metadata-raw',
         file: 'vpc_vault_secrets_metadata_raw_poc/version=1.0.0/env=dev/year={yyyy}/month={MM}/day={dd}/hour={hh}/minute={hh}/vault_secrets_report_genctl_dal-dev_123.csv',
-        cache: false
+        cache: false,
       };
       const [actual] = mergeSettings([settingWithDateTokens]);
 
@@ -74,7 +74,7 @@ describe('file-settings', () => {
         endpoint: 'http://us-east.com',
         bucket: 'obs-vpc-metadata-raw',
         file: 'vpc_vault_secrets_metadata_raw_poc/version=1.0.0/env=dev/year=2024/month=11/day=06/hour=*/minute=*/vault_secrets_report_genctl_dal-dev_*.csv',
-        cache: true
+        cache: true,
       };
       const [actual] = mergeSettings([settingWithGlob]);
 

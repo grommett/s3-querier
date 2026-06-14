@@ -4,7 +4,11 @@ import { IbmIamTokenManager } from './ibm-iam-token-manager.js';
 export function buildIbmIamClient(config, apiKey) {
   const tokenManager = new IbmIamTokenManager(apiKey);
   const client = new S3Client({ ...config, credentials: { accessKeyId: 'ibm-iam', secretAccessKey: 'ibm-iam' } });
-  client.middlewareStack.add(ibmIamMiddleware(tokenManager), { step: 'finalizeRequest', priority: 'low', name: 'ibmIamAuth' });
+  client.middlewareStack.add(ibmIamMiddleware(tokenManager), {
+    step: 'finalizeRequest',
+    priority: 'low',
+    name: 'ibmIamAuth',
+  });
   return client;
 }
 

@@ -27,7 +27,10 @@ describe('path-parser', () => {
 
     it('preserves all date tokens in the reconstructed file path', () => {
       const result = parseFilePath('data/year={yyyy}/month={MM}/day={dd}/hour={hh}/minute={mm}/second={ss}/f.parquet');
-      assert.strictEqual(result.file, 'data/year={yyyy}/month={MM}/day={dd}/hour={hh}/minute={mm}/second={ss}/f.parquet');
+      assert.strictEqual(
+        result.file,
+        'data/year={yyyy}/month={MM}/day={dd}/hour={hh}/minute={mm}/second={ss}/f.parquet',
+      );
     });
 
     it('preserves glob wildcards in the reconstructed file path', () => {
