@@ -10,9 +10,9 @@ export class IbmIamTokenManager {
     this.expiry = 0;
   }
 
-  async getToken() {
+  getToken() {
     if (this.token && Date.now() < this.expiry - TOKEN_REFRESH_BUFFER_MS) {
-      return this.token;
+      return Promise.resolve(this.token);
     }
     return this.refresh();
   }
