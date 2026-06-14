@@ -23,12 +23,18 @@
     "test:coverage:html": "node_modules/.bin/c8 -x coverage -x **/*.test.js --all -r html node --test \"./src/**/*.test.js\"",
     "prettify": "prettier \"./src/**/*.js\" --write",
     "lint": "eslint \"./src/**/*.js\"",
-    "lint:fix": "eslint --fix \"./src/**/*.js\""
+    "lint:fix": "eslint --fix \"./src/**/*.js\"",
+    "prepare": "husky"
   },
   "engines": {
     "node": ">=20"
   },
-  "keywords": ["s3", "duckdb", "parquet", "query"],
+  "keywords": [
+    "s3",
+    "duckdb",
+    "parquet",
+    "query"
+  ],
   "license": "MIT",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
@@ -45,6 +51,7 @@
     "c8": "^11.0.0",
     "eslint": "^8.50.0",
     "esmock": "^2.7.5",
+    "husky": "^9.1.7",
     "prettier": "^3.0.3"
   }
 }
