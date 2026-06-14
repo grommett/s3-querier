@@ -21,7 +21,7 @@
   "scripts": {
     "test": "node --test \"./src/**/*.test.js\"",
     "test:e2e": "docker compose -f e2e/docker-compose.yml up -d --wait && node e2e/setup/seed.js && node --test e2e/*.e2e.js; docker compose -f e2e/docker-compose.yml down",
-    "test:coverage:html": "node_modules/.bin/c8 -x coverage -x **/*.test.js --all -r html node --test \"./src/**/*.test.js\"",
+    "test:coverage:html": "c8 -x coverage -x **/*.test.js --all -r html node --test \"./src/**/*.test.js\"",
     "prettify": "prettier \"./src/**/*.js\" --write",
     "lint": "eslint \"./src/**/*.js\"",
     "lint:fix": "eslint --fix \"./src/**/*.js\"",
