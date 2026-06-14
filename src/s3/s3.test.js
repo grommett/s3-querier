@@ -221,6 +221,54 @@ describe('S3', () => {
     });
   });
 
+  describe('objectToFile', () => {
+    it('writes to a temp path then atomically renames to the final path', async () => {
+      const writeFileSpy = mock.fn(() => Promise.resolve());
+      const renameSpy = mock.fn(() => Promise.resolve());
+      const S3Atomic = await getS3withMocks({ writeFile: writeFileSpy, rename: renameSpy });
+      const s3 = new S3Atomic({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'my-bucket',
+        mount: '/tmp/test',
+        plugins: [],
+      });
+
+      await s3.objectToFile('some/file.parquet');
+
+      const writtenPath = writeFileSpy.mock.calls[0].arguments[0];
+      const [renamedFrom, renamedTo] = renameSpy.mock.calls[0].arguments;
+
+      assert.ok(writtenPath.startsWith('/tmp/test/some/file.parquet.'), `expected temp path, got: ${writtenPath}`);
+      assert.ok(writtenPath.endsWith('.tmp'), `expected .tmp suffix, got: ${writtenPath}`);
+      assert.strictEqual(renamedFrom, writtenPath);
+      assert.strictEqual(renamedTo, '/tmp/test/some/file.parquet');
+    });
+
+    it('removes the temp file and rethrows when the download fails', async () => {
+      const unlinkSpy = mock.fn(() => Promise.resolve());
+      const S3Failing = await getS3withMocks({
+        writeFile: () => Promise.reject(new Error('disk full')),
+        unlink: unlinkSpy,
+      });
+      const s3 = new S3Failing({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'my-bucket',
+        mount: '/tmp/test',
+        plugins: [],
+      });
+
+      await assert.rejects(s3.objectToFile('some/file.parquet'));
+
+      assert.strictEqual(unlinkSpy.mock.callCount(), 1);
+      const unlinkedPath = unlinkSpy.mock.calls[0].arguments[0];
+      assert.ok(unlinkedPath.endsWith('.tmp'), `expected .tmp suffix on unlinked path, got: ${unlinkedPath}`);
+    });
+  });
+
   describe('getTodayPrefix', () => {
     it('returns the prefix used for todays date', () => {
       const s3 = new S3({
@@ -264,12 +312,14 @@ class DefaultS3Client {
 function getS3withMocks({
   mkdir = () => Promise.resolve(),
   writeFile = () => Promise.resolve(),
+  rename = () => Promise.resolve(),
+  unlink = () => Promise.resolve(),
   stat = () => Promise.resolve(),
   s3ClientClass = DefaultS3Client,
   buildIbmIamClientFn = () => new DefaultS3Client(),
 }) {
   return esmock('./s3.js', {
-    'node:fs/promises': { mkdir, writeFile, stat },
+    'node:fs/promises': { mkdir, writeFile, rename, unlink, stat },
     'node:path': { dirname: () => {} },
     '@aws-sdk/client-s3': {
       S3Client: s3ClientClass,
