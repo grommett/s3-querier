@@ -11,6 +11,8 @@ export default [
     },
     rules: {
       'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      'id-length': ['error', { min: 2, exceptions: ['_'] }],
+      'require-await': 'error',
     },
   },
 ];

@@ -87,15 +87,15 @@ describe('S3', () => {
 
     it('filters out non-matching file paths from S3 listing results', async () => {
       class S3ClientWithNonMatching extends DefaultS3Client {
-        async send(command) {
+        send(command) {
           if (command.constructor.name === 'ListObjectsV2Command') {
-            return {
+            return Promise.resolve({
               Contents: [
                 { Key: '/path/to/file1', Size: 0 },
                 { Key: '/non-matching/file/pattern', Size: 0 },
                 { Key: '/path/to/file2', Size: 0 },
               ],
-            };
+            });
           }
           return super.send(command);
         }
@@ -248,16 +248,16 @@ async function* asyncBody() {
 }
 
 class DefaultS3Client {
-  async send(command) {
+  send(command) {
     if (command.constructor.name === 'ListObjectsV2Command') {
-      return {
+      return Promise.resolve({
         Contents: [
           { Key: '/path/to/file1', Size: 0 },
           { Key: '/path/to/file2', Size: 0 },
         ],
-      };
+      });
     }
-    return { Body: asyncBody() };
+    return Promise.resolve({ Body: asyncBody() });
   }
 }
 

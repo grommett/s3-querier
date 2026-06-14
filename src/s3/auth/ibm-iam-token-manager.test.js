@@ -5,12 +5,13 @@ import { IbmIamTokenManager } from './ibm-iam-token-manager.js';
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
 function makeFetchFn({ token = 'test-token', expiresIn = 3600, ok = true } = {}) {
-  return async () => ({
-    ok,
-    status: ok ? 200 : 401,
-    statusText: ok ? 'OK' : 'Unauthorized',
-    json: async () => ({ access_token: token, expires_in: expiresIn }),
-  });
+  return () =>
+    Promise.resolve({
+      ok,
+      status: ok ? 200 : 401,
+      statusText: ok ? 'OK' : 'Unauthorized',
+      json: () => Promise.resolve({ access_token: token, expires_in: expiresIn }),
+    });
 }
 
 describe('IbmIamTokenManager', () => {
@@ -25,9 +26,12 @@ describe('IbmIamTokenManager', () => {
 
     it('returns the cached token on subsequent calls before expiry', async () => {
       let callCount = 0;
-      const fetchFn = async () => {
+      const fetchFn = () => {
         callCount++;
-        return { ok: true, json: async () => ({ access_token: 'cached-token', expires_in: 3600 }) };
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ access_token: 'cached-token', expires_in: 3600 }),
+        });
       };
       const manager = new IbmIamTokenManager('my-api-key', { fetchFn });
 
@@ -39,9 +43,12 @@ describe('IbmIamTokenManager', () => {
 
     it('refreshes the token when within the refresh buffer window', async () => {
       let callCount = 0;
-      const fetchFn = async () => {
+      const fetchFn = () => {
         callCount++;
-        return { ok: true, json: async () => ({ access_token: `token-${callCount}`, expires_in: 3600 }) };
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ access_token: `token-${callCount}`, expires_in: 3600 }),
+        });
       };
       const manager = new IbmIamTokenManager('my-api-key', { fetchFn });
 
