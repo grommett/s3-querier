@@ -368,17 +368,20 @@ export default class S3 {
    */
   async objectToFile(key) {
     const file = `${this.mount}/${key}`;
+    const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
     try {
       const response = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
       const chunks = [];
       for await (const chunk of response.Body) {
         chunks.push(chunk);
       }
-      await fsPromise.writeFile(file, Buffer.concat(chunks));
+      await fsPromise.writeFile(tmp, Buffer.concat(chunks));
+      await fsPromise.rename(tmp, file);
       await this.processFile(file);
       return file;
     } catch (error) {
       logger.error(`${error.$metadata?.httpStatusCode ?? error.statusCode} - ${file}`);
+      await fsPromise.unlink(tmp).catch(() => {});
       throw error;
     }
   }

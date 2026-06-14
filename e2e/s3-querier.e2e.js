@@ -253,6 +253,33 @@ describe('s3-querier e2e', () => {
     }
   });
 
+  it('handles concurrent cache=false downloads of the same file without corruption', async () => {
+    const concurrentDir = await mkdtemp(join(tmpdir(), 's3-e2e-concurrent-'));
+    try {
+      const options = {
+        accessKeyId: ACCESS_KEY,
+        secretAccessKey: SECRET_KEY,
+        defaultEndpoint: ENDPOINT,
+        defaultBucket: BUCKET,
+        bucketsDir: concurrentDir,
+        plugins: [],
+        from: FROM,
+        to: TO,
+        format: 'jsonRecords',
+        query: `SELECT * FROM read_parquet('reports/summary.parquet?cache=false') ORDER BY id`,
+      };
+
+      const [result1, result2] = await Promise.all([s3Querier(options), s3Querier(options)]);
+
+      assert.strictEqual(result1.length, 3);
+      assert.strictEqual(result2.length, 3);
+      assert.deepStrictEqual(result1[0], { id: 1, event_type: 'login', region: 'us-east', value: 42.5 });
+      assert.deepStrictEqual(result2[0], { id: 1, event_type: 'login', region: 'us-east', value: 42.5 });
+    } finally {
+      await rm(concurrentDir, { recursive: true });
+    }
+  });
+
   it('joins files from two different buckets using {bucket} tokens (ignores whitespace & comments too)', async () => {
     const result = await s3Querier({
       accessKeyId: ACCESS_KEY,
