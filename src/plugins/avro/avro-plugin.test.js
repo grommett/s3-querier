@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
+import esmock from 'esmock';
 import AvroPlugin from './avro-plugin.js';
 
 describe('AvroPlugin', () => {
@@ -94,6 +95,53 @@ describe('AvroPlugin', () => {
       const actual = await plugin.processFile(fileName);
 
       assert(actual === fileName);
+    });
+
+    it('resolves with the json file path when the json file already exists', async () => {
+      const AvroPluginMocked = await esmock('./avro-plugin.js', {
+        'node:fs': { createWriteStream: () => ({}) },
+        'node:fs/promises': { stat: () => Promise.resolve() },
+        avsc: { createFileDecoder: () => ({}) },
+      });
+      const plugin = new AvroPluginMocked();
+      const result = await plugin.processFile('/data/events.avro');
+
+      assert.strictEqual(result, '/data/events.json');
+    });
+
+    it('resolves with the json file path after decoding the avro file', async () => {
+      const fileStream = {
+        on(event, callback) {
+          if (event === 'close') process.nextTick(callback);
+          return this;
+        },
+      };
+      const AvroPluginMocked = await esmock('./avro-plugin.js', {
+        'node:fs': { createWriteStream: () => fileStream },
+        'node:fs/promises': { stat: () => Promise.reject(new Error('not found')) },
+        avsc: { createFileDecoder: () => ({ pipe: () => {} }) },
+      });
+      const plugin = new AvroPluginMocked();
+      const result = await plugin.processFile('/data/events.avro');
+
+      assert.strictEqual(result, '/data/events.json');
+    });
+
+    it('rejects when the output stream emits an error', async () => {
+      const fileStream = {
+        on(event, callback) {
+          if (event === 'error') process.nextTick(callback);
+          return this;
+        },
+      };
+      const AvroPluginMocked = await esmock('./avro-plugin.js', {
+        'node:fs': { createWriteStream: () => fileStream },
+        'node:fs/promises': { stat: () => Promise.reject(new Error('not found')) },
+        avsc: { createFileDecoder: () => ({ pipe: () => {} }) },
+      });
+      const plugin = new AvroPluginMocked();
+
+      await assert.rejects(plugin.processFile('/data/events.avro'), /Error converting avro/);
     });
   });
 });

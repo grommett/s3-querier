@@ -325,6 +325,298 @@ describe('S3', () => {
       assert.deepEqual(actual, expected);
     });
   });
+
+  describe('preFlightCheck', () => {
+    it('returns true when the total file size is within the default limit', () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        plugins: [],
+      });
+      const filePaths = [
+        { file: 'a.parquet', size: 500 * 1e6 },
+        { file: 'b.parquet', size: 400 * 1e6 },
+      ];
+
+      assert.strictEqual(s3.preFlightCheck(filePaths), true);
+    });
+
+    it('throws when the total file size exceeds the default 1000 MB limit', () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        plugins: [],
+      });
+      const filePaths = [{ file: 'big.parquet', size: 1001 * 1e6 }];
+
+      assert.throws(() => s3.preFlightCheck(filePaths), /exceeds/);
+    });
+
+    it('respects the MAX_MB_DOWNLOAD environment variable', () => {
+      process.env.MAX_MB_DOWNLOAD = '100';
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        plugins: [],
+      });
+      const filePaths = [{ file: 'medium.parquet', size: 101 * 1e6 }];
+
+      assert.throws(() => s3.preFlightCheck(filePaths), /exceeds/);
+      delete process.env.MAX_MB_DOWNLOAD;
+    });
+  });
+
+  describe('logStatistics', () => {
+    it('returns the original results array', () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        plugins: [],
+      });
+      const results = ['./file1.parquet', './file2.parquet'];
+      const stats = { start: new Date(), bytesDownloaded: 1024 * 1024, cacheHits: 1, cacheMisses: 1, enqueuedHits: 0 };
+      const logFn = s3.logStatistics(stats);
+
+      assert.strictEqual(logFn(results), results);
+    });
+  });
+
+  describe('startDownloads', () => {
+    it('increments enqueuedHits when a file is already being downloaded', () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        plugins: [],
+      });
+      s3.enqueuedFiles.set('data.parquet', Promise.resolve('./data.parquet'));
+      const stats = { enqueuedHits: 0, cacheHits: 0, cacheMisses: 0, bytesDownloaded: 0 };
+
+      s3.startDownloads(stats, [{ file: 'data.parquet', size: 0, cache: true }]);
+
+      assert.strictEqual(stats.enqueuedHits, 1);
+    });
+
+    it('does not increment enqueuedHits for a file not yet being downloaded', () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        plugins: [],
+      });
+      const stats = { enqueuedHits: 0, cacheHits: 0, cacheMisses: 0, bytesDownloaded: 0 };
+
+      s3.startDownloads(stats, [{ file: 'new.parquet', size: 0, cache: true }]);
+
+      assert.strictEqual(stats.enqueuedHits, 0);
+    });
+  });
+
+  describe('downloadFile', () => {
+    it('resolves with the local file path when cache is not false', async () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        mount: '/mnt',
+        plugins: [],
+      });
+      const stats = { cacheHits: 0, cacheMisses: 0, bytesDownloaded: 0 };
+      const result = await s3.downloadFile(stats, { file: 'data.parquet', size: 100 });
+
+      assert.strictEqual(result, '/mnt/data.parquet');
+      assert.strictEqual(stats.cacheHits, 1);
+    });
+
+    it('resolves with the local file path when cache is false', async () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        mount: '/mnt',
+        plugins: [],
+      });
+      const stats = { cacheHits: 0, cacheMisses: 0, bytesDownloaded: 0 };
+      const result = await s3.downloadFile(stats, { file: 'data.parquet', size: 100, cache: false });
+
+      assert.strictEqual(result, '/mnt/data.parquet');
+      assert.strictEqual(stats.cacheMisses, 1);
+    });
+  });
+
+  describe('downloadFileCache', () => {
+    it('returns the local path and counts a cache hit when the file already exists', async () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        mount: '/mnt',
+        plugins: [],
+      });
+      const stats = { cacheHits: 0, cacheMisses: 0, bytesDownloaded: 0 };
+      const result = await s3.downloadFileCache(stats, { file: 'data.parquet', size: 100 });
+
+      assert.strictEqual(result, '/mnt/data.parquet');
+      assert.strictEqual(stats.cacheHits, 1);
+      assert.strictEqual(stats.cacheMisses, 0);
+    });
+
+    it('downloads the file and counts a cache miss when the file does not exist locally', async () => {
+      const S3Miss = await getS3withMocks({ stat: () => Promise.reject(new Error('not found')) });
+      const s3 = new S3Miss({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        mount: '/mnt',
+        plugins: [],
+      });
+      const stats = { cacheHits: 0, cacheMisses: 0, bytesDownloaded: 0 };
+      const result = await s3.downloadFileCache(stats, { file: 'data.parquet', size: 512 });
+
+      assert.strictEqual(result, '/mnt/data.parquet');
+      assert.strictEqual(stats.cacheMisses, 1);
+      assert.strictEqual(stats.bytesDownloaded, 512);
+    });
+  });
+
+  describe('downloadFileForced', () => {
+    it('always downloads the file regardless of local cache', async () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        mount: '/mnt',
+        plugins: [],
+      });
+      const stats = { cacheHits: 0, cacheMisses: 0, bytesDownloaded: 0 };
+      const result = await s3.downloadFileForced(stats, { file: 'data.parquet', size: 2048 });
+
+      assert.strictEqual(result, '/mnt/data.parquet');
+      assert.strictEqual(stats.cacheMisses, 1);
+      assert.strictEqual(stats.bytesDownloaded, 2048);
+    });
+
+    it('rejects when mkdir fails', async () => {
+      const S3MkdirFail = await getS3withMocks({ mkdir: () => Promise.reject(new Error('permission denied')) });
+      const s3 = new S3MkdirFail({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        mount: '/mnt',
+        plugins: [],
+      });
+      const stats = { cacheHits: 0, cacheMisses: 0, bytesDownloaded: 0 };
+
+      await assert.rejects(s3.downloadFileForced(stats, { file: 'data.parquet', size: 0 }));
+    });
+  });
+
+  describe('processFile', () => {
+    it('resolves with the file path when plugins process the file successfully', async () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        plugins: [{ processFile: (file) => Promise.resolve(file) }],
+      });
+
+      assert.strictEqual(await s3.processFile('./data.parquet'), './data.parquet');
+    });
+
+    it('resolves with the file path when a plugin has no processFile method', async () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        plugins: [{}],
+      });
+
+      assert.strictEqual(await s3.processFile('./data.parquet'), './data.parquet');
+    });
+  });
+
+  describe('downloadFileList', () => {
+    it('returns the list of successfully downloaded file paths', async () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        plugins: [],
+      });
+      const result = await s3.downloadFileList([{ file: 'data.parquet', size: 0, cache: true }]);
+
+      assert.deepStrictEqual(result, ['./data.parquet']);
+    });
+
+    it('throws synchronously when total file size exceeds the limit', () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        plugins: [],
+      });
+
+      assert.throws(() => s3.downloadFileList([{ file: 'big.parquet', size: 1001 * 1e6 }]), /exceeds/);
+    });
+  });
+
+  describe('downloadFiles', () => {
+    it('returns paths for all files matching the date range and pattern', async () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        plugins: [],
+      });
+      const result = await s3.downloadFiles({
+        from: '2005-01-17T00:00:00Z',
+        to: '2005-01-19T00:00:00Z',
+        filePatterns: [{ file: '/path/to/file', cache: true }],
+      });
+
+      assert.ok(Array.isArray(result));
+      assert.strictEqual(result.length, 2);
+    });
+
+    it('includes static files in the download result', async () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'test',
+        plugins: [],
+      });
+      const result = await s3.downloadFiles({
+        from: '2005-01-17T00:00:00Z',
+        to: '2005-01-19T00:00:00Z',
+        filePatterns: [],
+        staticFiles: [{ file: 'static.parquet', size: 0, cache: true }],
+      });
+
+      assert.ok(result.some((path) => path.includes('static.parquet')));
+    });
+  });
 });
 
 async function* asyncBody() {
