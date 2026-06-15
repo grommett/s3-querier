@@ -42,10 +42,10 @@ function applyFileSetting(query, { sqlFileReference, file, bucket }, downloadedP
   const filePattern = regexFromPattern(file);
   const matchingPaths = downloadedPaths.filter((localPath) => matchesPattern(localPath, localDir, filePattern));
   const searchStr = sqlFileReference.replace(/\?cache=(true|false)/i, '');
+  const replacement = matchingPaths[0] ?? `${localDir}${removeFileDatePatterns(file)}`;
 
   if (matchingPaths.length > 1) return replaceWithArray(query, searchStr, matchingPaths);
 
-  const replacement = matchingPaths[0] ?? `${localDir}${removeFileDatePatterns(file)}`;
   return query.replace(new RegExp(escapeForRegex(searchStr), 'gi'), replacement);
 }
 
