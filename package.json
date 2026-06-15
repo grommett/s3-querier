@@ -4,8 +4,12 @@
   "description": "Query S3-compatible storage with DuckDB and SQL",
   "type": "module",
   "main": "src/s3-querier.js",
+  "bin": {
+    "s3-querier-mcp": "src/mcp/server.js"
+  },
   "exports": {
-    ".": "./src/s3-querier.js"
+    ".": "./src/s3-querier.js",
+    "./mcp": "./src/mcp/datalake-mcp.js"
   },
   "files": [
     "src/**/*.js",
@@ -44,8 +48,10 @@
     "@aws-sdk/client-s3": "^3.0.0",
     "@derekstride/tree-sitter-sql": "^0.3.11",
     "@duckdb/node-api": "^1.5.3-r.3",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "avsc": "^5.7.7",
     "date-fns": "^4.0.0",
+    "hyparquet": "^1.26.0",
     "lru-cache": "^11.0.0",
     "peggy": "^5.1.0",
     "pino": "^10.3.1",

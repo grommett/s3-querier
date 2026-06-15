@@ -9,6 +9,24 @@ const ACCESS_KEY_ID = 'minioadmin';
 const SECRET_ACCESS_KEY = 'minioadmin';
 const BUCKET = 'demo';
 
+const SALES_MONTHS = [
+  { year: 2024, month: 1, days: 31, count: 120 },
+  { year: 2024, month: 2, days: 29, count: 110 },
+  { year: 2024, month: 3, days: 31, count: 130 },
+  { year: 2024, month: 4, days: 30, count: 115 },
+  { year: 2024, month: 5, days: 31, count: 125 },
+  { year: 2024, month: 6, days: 30, count: 120 },
+  { year: 2024, month: 7, days: 31, count: 135 },
+  { year: 2024, month: 8, days: 31, count: 130 },
+  { year: 2024, month: 9, days: 30, count: 110 },
+  { year: 2024, month: 10, days: 31, count: 125 },
+  { year: 2024, month: 11, days: 30, count: 115 },
+  { year: 2024, month: 12, days: 31, count: 140 },
+  { year: 2025, month: 1, days: 31, count: 130 },
+  { year: 2025, month: 2, days: 28, count: 115 },
+  { year: 2025, month: 3, days: 31, count: 125 },
+];
+
 const s3 = new S3Client({
   endpoint: ENDPOINT,
   region: 'us-east-1',
@@ -18,6 +36,28 @@ const s3 = new S3Client({
 
 const db = await DuckDBInstance.create(':memory:');
 const conn = await db.connect();
+
+try {
+  await s3.send(new CreateBucketCommand({ Bucket: BUCKET }));
+} catch (err) {
+  if (err.Code !== 'BucketAlreadyOwnedByYou') throw err;
+}
+
+const { uploads: salesUploads } = SALES_MONTHS.reduce(addSalesUpload, { nextId: 1, uploads: [] });
+
+await Promise.all([
+  ...salesUploads,
+  writeAndUpload(
+    `SELECT unnest(['Widget A','Widget B','Gadget X','Gadget Y']) AS name,
+      unnest(['Widgets','Widgets','Gadgets','Gadgets']) AS category,
+      unnest([29.99, 49.99, 99.99, 149.99]) AS price`,
+    'products/catalog.parquet',
+  ),
+]);
+
+console.log('Demo data seeded. MinIO console: http://localhost:9001');
+
+/** Helpers */
 
 async function writeAndUpload(sql, key) {
   const safeName = key.replaceAll('/', '-');
@@ -29,46 +69,22 @@ async function writeAndUpload(sql, key) {
   console.log(`seeded: ${key}`);
 }
 
-try {
-  await s3.send(new CreateBucketCommand({ Bucket: BUCKET }));
-} catch (err) {
-  if (err.Code !== 'BucketAlreadyOwnedByYou') throw err;
+function addSalesUpload(acc, { year, month, days, count }) {
+  const upload = writeAndUpload(salesMonthSql(acc.nextId, year, month, days, count), salesMonthKey(year, month));
+  return { nextId: acc.nextId + count, uploads: [...acc.uploads, upload] };
 }
 
-await Promise.all([
-  writeAndUpload(
-    `SELECT range + 1 AS id,
-      date_add(date '2024-01-01', INTERVAL (range % 31) DAY) AS date,
-      ['Widget A','Widget B','Gadget X','Gadget Y'][(range % 4) + 1] AS product,
-      round(50 + random() * 950, 2) AS amount,
-      ['North','South','East','West'][(range % 4) + 1] AS region
-    FROM range(120)`,
-    'sales/year=2024/month=01/data.parquet',
-  ),
-  writeAndUpload(
-    `SELECT range + 121 AS id,
-      date_add(date '2024-02-01', INTERVAL (range % 29) DAY) AS date,
-      ['Widget A','Widget B','Gadget X','Gadget Y'][(range % 4) + 1] AS product,
-      round(50 + random() * 950, 2) AS amount,
-      ['North','South','East','West'][(range % 4) + 1] AS region
-    FROM range(110)`,
-    'sales/year=2024/month=02/data.parquet',
-  ),
-  writeAndUpload(
-    `SELECT range + 231 AS id,
-      date_add(date '2024-03-01', INTERVAL (range % 31) DAY) AS date,
-      ['Widget A','Widget B','Gadget X','Gadget Y'][(range % 4) + 1] AS product,
-      round(50 + random() * 950, 2) AS amount,
-      ['North','South','East','West'][(range % 4) + 1] AS region
-    FROM range(130)`,
-    'sales/year=2024/month=03/data.parquet',
-  ),
-  writeAndUpload(
-    `SELECT unnest(['Widget A','Widget B','Gadget X','Gadget Y']) AS name,
-      unnest(['Widgets','Widgets','Gadgets','Gadgets']) AS category,
-      unnest([29.99, 49.99, 99.99, 149.99]) AS price`,
-    'products/catalog.parquet',
-  ),
-]);
+function salesMonthSql(startId, year, month, days, count) {
+  const mm = String(month).padStart(2, '0');
+  return `SELECT range + ${startId} AS id,
+    date_add(date '${year}-${mm}-01', INTERVAL (range % ${days}) DAY) AS date,
+    ['Widget A','Widget B','Gadget X','Gadget Y'][(range % 4) + 1] AS product,
+    round(50 + random() * 950, 2) AS amount,
+    ['North','South','East','West'][(range % 4) + 1] AS region
+  FROM range(${count})`;
+}
 
-console.log('Demo data seeded. MinIO console: http://localhost:9001');
+function salesMonthKey(year, month) {
+  const mm = String(month).padStart(2, '0');
+  return `sales/year=${year}/month=${mm}/data.parquet`;
+}
