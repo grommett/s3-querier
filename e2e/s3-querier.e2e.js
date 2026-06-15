@@ -280,6 +280,35 @@ describe('s3-querier e2e', () => {
     }
   });
 
+  it('returns correct results for parallel queries over different date ranges', async () => {
+    const parallelDir = await mkdtemp(join(tmpdir(), 's3-e2e-parallel-'));
+    const baseOptions = {
+      accessKeyId: ACCESS_KEY,
+      secretAccessKey: SECRET_KEY,
+      defaultEndpoint: ENDPOINT,
+      defaultBucket: BUCKET,
+      bucketsDir: parallelDir,
+      plugins: [],
+      format: 'jsonRecords',
+      query: `SELECT * FROM read_parquet('sales/year={yyyy}/month={MM}/data.parquet', union_by_name=1) ORDER BY year, month, id`,
+    };
+    try {
+      const [q1_2024, q1_2025] = await Promise.all([
+        s3Querier({ ...baseOptions, from: new Date('2024-01-01T00:00:00Z').getTime(), to: new Date('2024-03-31T23:59:59Z').getTime() }),
+        s3Querier({ ...baseOptions, from: new Date('2025-01-01T00:00:00Z').getTime(), to: new Date('2025-01-31T23:59:59Z').getTime() }),
+      ]);
+
+      assert.strictEqual(q1_2024.length, 9);
+      assert.ok(q1_2024.every((row) => Number(row.year) === 2024));
+      assert.ok(q1_2024.every((row) => Number(row.month) !== 4));
+
+      assert.strictEqual(q1_2025.length, 3);
+      assert.ok(q1_2025.every((row) => Number(row.year) === 2025));
+    } finally {
+      await rm(parallelDir, { recursive: true });
+    }
+  });
+
   it('handles concurrent cache=false downloads of the same file without corruption', async () => {
     const concurrentDir = await mkdtemp(join(tmpdir(), 's3-e2e-concurrent-'));
     try {
