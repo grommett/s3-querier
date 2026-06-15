@@ -1,0 +1,64 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert';
+import esmock from 'esmock';
+
+describe('handleQuery', () => {
+  it('returns query results as JSON in MCP text content format', async () => {
+    const { handleQuery } = await esmock('./query.js', {
+      '../../s3-querier.js': {
+        default: () => Promise.resolve([{ name: 'Alice', count: 5 }]),
+        bigintReplacer: passThrough,
+      },
+    });
+
+    const result = await handleQuery({ sql: 'SELECT name, count FROM data' });
+
+    assert.deepStrictEqual(result, {
+      content: [{ type: 'text', text: '[{"name":"Alice","count":5}]' }],
+    });
+  });
+
+  it('converts ISO date strings to millisecond timestamps', async () => {
+    let capturedFrom;
+    let capturedTo;
+    const { handleQuery } = await esmock('./query.js', {
+      '../../s3-querier.js': {
+        default: ({ from, to }) => {
+          capturedFrom = from;
+          capturedTo = to;
+          return Promise.resolve([]);
+        },
+        bigintReplacer: passThrough,
+      },
+    });
+
+    await handleQuery({ sql: 'SELECT 1', from: '2025-01-01', to: '2025-01-31' });
+
+    assert.strictEqual(capturedFrom, new Date('2025-01-01').getTime());
+    assert.strictEqual(capturedTo, new Date('2025-01-31').getTime());
+  });
+
+  it('omits from and to when not provided in the call', async () => {
+    let capturedFrom;
+    let capturedTo;
+    const { handleQuery } = await esmock('./query.js', {
+      '../../s3-querier.js': {
+        default: ({ from, to }) => {
+          capturedFrom = from;
+          capturedTo = to;
+          return Promise.resolve([]);
+        },
+        bigintReplacer: passThrough,
+      },
+    });
+
+    await handleQuery({ sql: 'SELECT 1' });
+
+    assert.strictEqual(capturedFrom, undefined);
+    assert.strictEqual(capturedTo, undefined);
+  });
+});
+
+function passThrough(_, val) {
+  return val;
+}
