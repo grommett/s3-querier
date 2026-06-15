@@ -3,3 +3,4 @@ coverage/
 .env
 *.parquet
 .DS_Store
+.claude/
