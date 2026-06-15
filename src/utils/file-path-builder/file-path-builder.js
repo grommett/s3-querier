@@ -29,6 +29,22 @@ export function datesInRange(from, to) {
 }
 
 /**
+ * Given a date range returns one date object per calendar month.
+ * Returns noon-UTC dates so that getMonth()/getFullYear() produce the correct
+ * UTC month in any timezone.
+ *
+ * @param {Date} from The from Date object
+ * @param {Date} to The to Date object
+ * @returns {Date[]} An array of dates, one per month within the range
+ */
+export function monthsInRange(from, to) {
+  const startYear = from.getUTCFullYear();
+  const startMonth = from.getUTCMonth();
+  const count = (to.getUTCFullYear() - startYear) * 12 + (to.getUTCMonth() - startMonth) + 1;
+  return Array.from({ length: count }, (_, index) => noonUtcForMonthOffset(startYear, startMonth, index));
+}
+
+/**
  * Given a date range returns an array of date objects
  *
  * @param {Date} from The from Date object
@@ -52,4 +68,10 @@ export function zeroDateMins(date) {
   const zeroedDate = new Date(date);
   zeroedDate.setMinutes(0, 0);
   return zeroedDate;
+}
+
+function noonUtcForMonthOffset(startYear, startMonth, offset) {
+  const year = startYear + Math.floor((startMonth + offset) / 12);
+  const month = (startMonth + offset) % 12;
+  return new Date(Date.UTC(year, month, 1, 12, 0, 0));
 }

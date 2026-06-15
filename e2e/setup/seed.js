@@ -48,6 +48,11 @@ async function generateFixtures() {
   const hour00Data = `SELECT 1 AS id, 0 AS hour UNION ALL SELECT 2, 0 UNION ALL SELECT 3, 0`;
   const hour01Data = `SELECT 1 AS id, 1 AS hour UNION ALL SELECT 2, 1 UNION ALL SELECT 3, 1`;
   const hour02Data = `SELECT 1 AS id, 2 AS hour UNION ALL SELECT 2, 2 UNION ALL SELECT 3, 2`;
+  const salesJan2024 = `SELECT 1 AS id, 1 AS month, 2024 AS year UNION ALL SELECT 2, 1, 2024 UNION ALL SELECT 3, 1, 2024`;
+  const salesFeb2024 = `SELECT 1 AS id, 2 AS month, 2024 AS year UNION ALL SELECT 2, 2, 2024 UNION ALL SELECT 3, 2, 2024`;
+  const salesMar2024 = `SELECT 1 AS id, 3 AS month, 2024 AS year UNION ALL SELECT 2, 3, 2024 UNION ALL SELECT 3, 3, 2024`;
+  const salesApr2024 = `SELECT 1 AS id, 4 AS month, 2024 AS year UNION ALL SELECT 2, 4, 2024 UNION ALL SELECT 3, 4, 2024`;
+  const salesJan2025 = `SELECT 1 AS id, 1 AS month, 2025 AS year UNION ALL SELECT 2, 1, 2025 UNION ALL SELECT 3, 1, 2025`;
 
   const referenceData = `
     SELECT 1 AS id, 'user login event'    AS description
@@ -65,6 +70,11 @@ async function generateFixtures() {
   const hour01Path = join(dir, 'hour01.parquet');
   const hour02Path = join(dir, 'hour02.parquet');
   const referencePath = join(dir, 'reference.parquet');
+  const salesJan2024Path = join(dir, 'sales-jan-2024.parquet');
+  const salesFeb2024Path = join(dir, 'sales-feb-2024.parquet');
+  const salesMar2024Path = join(dir, 'sales-mar-2024.parquet');
+  const salesApr2024Path = join(dir, 'sales-apr-2024.parquet');
+  const salesJan2025Path = join(dir, 'sales-jan-2025.parquet');
 
   await conn.run(`COPY (${testData}) TO '${parquetPath}' (FORMAT PARQUET)`);
   await conn.run(`COPY (${testData}) TO '${csvPath}' (FORMAT CSV, HEADER)`);
@@ -76,8 +86,30 @@ async function generateFixtures() {
   await conn.run(`COPY (${hour01Data}) TO '${hour01Path}' (FORMAT PARQUET)`);
   await conn.run(`COPY (${hour02Data}) TO '${hour02Path}' (FORMAT PARQUET)`);
   await conn.run(`COPY (${referenceData}) TO '${referencePath}' (FORMAT PARQUET)`);
+  await conn.run(`COPY (${salesJan2024}) TO '${salesJan2024Path}' (FORMAT PARQUET)`);
+  await conn.run(`COPY (${salesFeb2024}) TO '${salesFeb2024Path}' (FORMAT PARQUET)`);
+  await conn.run(`COPY (${salesMar2024}) TO '${salesMar2024Path}' (FORMAT PARQUET)`);
+  await conn.run(`COPY (${salesApr2024}) TO '${salesApr2024Path}' (FORMAT PARQUET)`);
+  await conn.run(`COPY (${salesJan2025}) TO '${salesJan2025Path}' (FORMAT PARQUET)`);
 
-  return { dir, parquetPath, csvPath, day14Path, day15Path, day16Path, feb01Path, hour00Path, hour01Path, hour02Path, referencePath };
+  return {
+    dir,
+    parquetPath,
+    csvPath,
+    day14Path,
+    day15Path,
+    day16Path,
+    feb01Path,
+    hour00Path,
+    hour01Path,
+    hour02Path,
+    referencePath,
+    salesJan2024Path,
+    salesFeb2024Path,
+    salesMar2024Path,
+    salesApr2024Path,
+    salesJan2025Path,
+  };
 }
 
 async function upload(bucket, key, filePath) {
@@ -86,7 +118,24 @@ async function upload(bucket, key, filePath) {
   console.log(`Uploaded ${bucket}/${key}`);
 }
 
-const { dir, parquetPath, csvPath, day14Path, day15Path, day16Path, feb01Path, hour00Path, hour01Path, hour02Path, referencePath } = await generateFixtures();
+const {
+  dir,
+  parquetPath,
+  csvPath,
+  day14Path,
+  day15Path,
+  day16Path,
+  feb01Path,
+  hour00Path,
+  hour01Path,
+  hour02Path,
+  referencePath,
+  salesJan2024Path,
+  salesFeb2024Path,
+  salesMar2024Path,
+  salesApr2024Path,
+  salesJan2025Path,
+} = await generateFixtures();
 
 await Promise.all([createBucket(BUCKET), createBucket(BUCKET_2)]);
 
@@ -103,6 +152,11 @@ await Promise.all([
   upload(BUCKET, 'events/year=2024/month=01/day=14/hour=01/data.parquet', hour01Path),
   upload(BUCKET, 'events/year=2024/month=01/day=14/hour=02/data.parquet', hour02Path),
   upload(BUCKET_2, 'reference.parquet', referencePath),
+  upload(BUCKET, 'sales/year=2024/month=01/data.parquet', salesJan2024Path),
+  upload(BUCKET, 'sales/year=2024/month=02/data.parquet', salesFeb2024Path),
+  upload(BUCKET, 'sales/year=2024/month=03/data.parquet', salesMar2024Path),
+  upload(BUCKET, 'sales/year=2024/month=04/data.parquet', salesApr2024Path),
+  upload(BUCKET, 'sales/year=2025/month=01/data.parquet', salesJan2025Path),
 ]);
 
 await rm(dir, { recursive: true });
