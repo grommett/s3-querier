@@ -48,7 +48,7 @@ const DOCS_RESOURCE = {
   mimeType: 'text/markdown',
 };
 
-export class DatalakeMCP {
+export class S3QuerierMCP {
   constructor(config = {}) {
     this.config = config;
   }

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
 
-import { DatalakeMCP } from './datalake-mcp.js';
+import { S3QuerierMCP } from './s3querier-mcp.js';
 
-await new DatalakeMCP().start();
+await new S3QuerierMCP().start();

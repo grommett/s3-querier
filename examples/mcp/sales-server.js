@@ -3,7 +3,7 @@
 /**
  * Example: Sales MCP Server
  *
- * A DatalakeMCP server enriched with dataset metadata for the demo sales
+ * A S3QuerierMCP server enriched with dataset metadata for the demo sales
  * and product catalog data. Run the demo MinIO instance first:
  *
  *   npm run demo:up
@@ -24,9 +24,9 @@
  *   - "What is the average order value by product category?"
  */
 
-import { DatalakeMCP } from '../../src/mcp/datalake-mcp.js';
+import { S3QuerierMCP } from '../../src/mcp/s3querier-mcp.js';
 
-new DatalakeMCP({
+new S3QuerierMCP({
   datasets: [
     {
       name: 'sales',
