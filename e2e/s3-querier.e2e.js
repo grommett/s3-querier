@@ -253,6 +253,33 @@ describe('s3-querier e2e', () => {
     }
   });
 
+  it('downloads only files within the month range using {yyyy}/{MM} tokens without a day token', async () => {
+    const monthRangeDir = await mkdtemp(join(tmpdir(), 's3-e2e-month-range-'));
+    try {
+      const result = await s3Querier({
+        accessKeyId: ACCESS_KEY,
+        secretAccessKey: SECRET_KEY,
+        defaultEndpoint: ENDPOINT,
+        defaultBucket: BUCKET,
+        bucketsDir: monthRangeDir,
+        plugins: [],
+        from: new Date('2024-01-01T00:00:00Z').getTime(),
+        to: new Date('2024-03-31T23:59:59Z').getTime(),
+        query: `SELECT * FROM read_parquet('sales/year={yyyy}/month={MM}/data.parquet') ORDER BY year, month, id`,
+        format: 'jsonRecords',
+      });
+
+      assert.strictEqual(result.length, 9);
+      assert.ok(result.every((row) => Number(row.year) === 2024));
+      assert.ok(result.some((row) => Number(row.month) === 1));
+      assert.ok(result.some((row) => Number(row.month) === 2));
+      assert.ok(result.some((row) => Number(row.month) === 3));
+      assert.ok(result.every((row) => Number(row.month) !== 4));
+    } finally {
+      await rm(monthRangeDir, { recursive: true });
+    }
+  });
+
   it('handles concurrent cache=false downloads of the same file without corruption', async () => {
     const concurrentDir = await mkdtemp(join(tmpdir(), 's3-e2e-concurrent-'));
     try {

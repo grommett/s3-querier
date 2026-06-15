@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
 
 import { logger } from '../utils/logger.js';
-import { datesInRange, hoursInRange, buildPath } from '../utils/file-path-builder/file-path-builder.js';
+import { datesInRange, hoursInRange, monthsInRange, buildPath } from '../utils/file-path-builder/file-path-builder.js';
 import { regexFromPattern } from '../utils/date-regex/date-regex.js';
 import { buildIbmIamClient } from './auth/ibm-iam-client.js';
 
@@ -139,12 +139,14 @@ export default class S3 {
    * @returns {(from:Date, to:Date, filePattern:string) => string[]} A function that creates a list of prefixes
    */
   prefixStrategy(from, to, filePattern) {
-    const hasDateToken = filePattern.match(/\{(yyyy|MM|dd|hh|mm)\}/g);
-    const hasGlob = filePattern.match(/\*/g);
+    const hasDayToken = /\{(dd|hh|mm)\}/.test(filePattern);
+    const hasMonthToken = /\{(yyyy|MM)\}/.test(filePattern);
+    const hasGlob = filePattern.includes('*');
     const hourDiff = (new Date(to) - new Date(from)) / 1000 / 60 / 60;
 
-    if (hasDateToken && hourDiff < 24) return this.prefixHours;
-    if (hasDateToken) return this.prefixDays;
+    if (hasDayToken && hourDiff < 24) return this.prefixHours;
+    if (hasDayToken) return this.prefixDays;
+    if (hasMonthToken) return this.prefixMonths;
     if (hasGlob) return this.prefixGlob;
     return (_from, _to, pattern) => [pattern];
   }
@@ -180,6 +182,22 @@ export default class S3 {
     return dateRange.map((date) => {
       return buildPath(`${trimmed}{dd}`, date);
     });
+  }
+
+  /**
+   * Returns a list of prefixes based on a range of months, one per calendar month.
+   * Used for Hive-style paths with {yyyy}/{MM} tokens but no {dd}.
+   *
+   * @param {Date} from From date
+   * @param {Date} to To date
+   * @param {string} filePattern The file pattern to use
+   * @returns {string[]} The list of prefixes for filtering
+   */
+  prefixMonths(from, to, filePattern) {
+    const monthRange = monthsInRange(new Date(from), new Date(to));
+    const splitToken = filePattern.includes('{MM}') ? '{MM}' : '{yyyy}';
+    const [trimmed] = filePattern.split(splitToken);
+    return monthRange.map((date) => buildPath(`${trimmed}${splitToken}`, date));
   }
 
   /**
@@ -422,7 +440,7 @@ export default class S3 {
   }
 }
 
-function buildS3Client({ apiKey, accessKeyId, secretAccessKey, endpoint, region }) {
+export function buildS3Client({ apiKey, accessKeyId, secretAccessKey, endpoint, region = 'us-east-1' }) {
   const config = { ...(endpoint && { endpoint }), region, forcePathStyle: true };
 
   if (apiKey) return buildIbmIamClient(config, apiKey);

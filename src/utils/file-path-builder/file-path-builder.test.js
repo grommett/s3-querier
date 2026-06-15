@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { datesInRange, hoursInRange, buildPath } from './file-path-builder.js';
+import { datesInRange, hoursInRange, monthsInRange, buildPath } from './file-path-builder.js';
 
 describe('file path builder', () => {
   describe('datesInRange', () => {
@@ -9,6 +9,29 @@ describe('file path builder', () => {
       const to = new Date('1972-08-13T00:00:00Z');
       const actual = datesInRange(from, to);
       assert.deepStrictEqual(actual.length, 11);
+    });
+  });
+
+  describe('monthsInRange', () => {
+    it('returns one date per month within a range in the same year', () => {
+      const from = new Date('2024-01-01T00:00:00Z');
+      const to = new Date('2024-03-31T00:00:00Z');
+      const actual = monthsInRange(from, to);
+      assert.deepStrictEqual(actual.length, 3);
+    });
+
+    it('returns months spanning a year boundary', () => {
+      const from = new Date('2024-11-01T00:00:00Z');
+      const to = new Date('2025-02-28T00:00:00Z');
+      const actual = monthsInRange(from, to);
+      assert.deepStrictEqual(actual.length, 4);
+    });
+
+    it('returns a single month when from and to are in the same month', () => {
+      const from = new Date('2024-06-01T00:00:00Z');
+      const to = new Date('2024-06-15T00:00:00Z');
+      const actual = monthsInRange(from, to);
+      assert.deepStrictEqual(actual.length, 1);
     });
   });
 

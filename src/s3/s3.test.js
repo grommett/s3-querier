@@ -176,6 +176,42 @@ describe('S3', () => {
       );
     });
 
+    it('returns a list of prefixes by month for year/month patterns without a day token', () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'vpc-objects',
+        plugins: [],
+      });
+      const pattern = 'sales/year={yyyy}/month={MM}/data.parquet';
+      const actual = s3.createPrefixes('2024-01-01T00:00:00Z', '2024-03-31T23:59:59Z', pattern);
+
+      assert.deepEqual(actual.length, 3);
+      assert.ok(actual.every((prefix) => /month=\d{2}/.test(prefix)));
+      assert.ok(actual.every((prefix) => !/day=/.test(prefix)));
+      assert.deepEqual(actual[0], 'sales/year=2024/month=01');
+      assert.deepEqual(actual[1], 'sales/year=2024/month=02');
+      assert.deepEqual(actual[2], 'sales/year=2024/month=03');
+    });
+
+    it('returns month prefixes spanning a year boundary', () => {
+      const s3 = new S3({
+        accessKeyId: '123',
+        secretAccessKey: 'secret',
+        endpoint: 'http://s3.com',
+        bucket: 'vpc-objects',
+        plugins: [],
+      });
+      const pattern = 'sales/year={yyyy}/month={MM}/data.parquet';
+      const actual = s3.createPrefixes('2024-12-01T00:00:00Z', '2025-02-28T23:59:59Z', pattern);
+
+      assert.deepEqual(actual.length, 3);
+      assert.deepEqual(actual[0], 'sales/year=2024/month=12');
+      assert.deepEqual(actual[1], 'sales/year=2025/month=01');
+      assert.deepEqual(actual[2], 'sales/year=2025/month=02');
+    });
+
     it('returns the full file path if no date tokens or globs are found', () => {
       const s3 = new S3({
         accessKeyId: '123',
