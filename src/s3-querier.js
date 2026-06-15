@@ -40,8 +40,16 @@ export default function s3Querier({
   format,
 }) {
   const systemPlugins = [new QueryParserPlugin(), ...plugins, new QueryFinalizerPlugin()];
-  const processed = processQuery(systemPlugins, { query, endpoint: defaultEndpoint, defaultBucket, bucketsDir });
-  const { query: processedQuery, settings: downloadSettings } = processed;
+  const {
+    query: rawQuery,
+    fileSettings,
+    settings: downloadSettings,
+  } = processQuery(systemPlugins, {
+    query,
+    endpoint: defaultEndpoint,
+    defaultBucket,
+    bucketsDir,
+  });
 
   const downloadPromises = startDownloads({
     apiKey,
@@ -58,7 +66,9 @@ export default function s3Querier({
     results.forEach((result) => {
       if (result.status === 'rejected') throw result.reason;
     });
-    return execQuery(processedQuery, { format });
+    const downloadedPaths = results.flatMap((result) => result.value);
+    const finalQuery = runFinalizers({ plugins: systemPlugins, rawQuery, fileSettings, downloadedPaths, bucketsDir });
+    return execQuery(finalQuery, { format });
   });
 }
 
@@ -72,14 +82,35 @@ export default function s3Querier({
  * @returns
  */
 function processQuery(plugins = [], { query = '', endpoint, defaultBucket, bucketsDir }) {
-  const processedQuery = plugins.reduce(
-    (result, plugin) => {
-      return plugin.processQuery(result);
-    },
-    { endpoint, defaultBucket, bucketsDir, query, settings: [] },
-  );
+  const processedQuery = plugins.reduce((result, plugin) => plugin.processQuery(result), {
+    endpoint,
+    defaultBucket,
+    bucketsDir,
+    query,
+    settings: [],
+  });
+  const fileSettings = processedQuery.settings;
   processedQuery.settings = mergeSettings(processedQuery.settings);
-  return processedQuery;
+  return { ...processedQuery, fileSettings };
+}
+
+/**
+ * Passes the raw query through each plugin's `finalizeQuery` lifecycle method,
+ * substituting exact downloaded paths in place of glob patterns.
+ *
+ * @param {object} params
+ * @param {object[]} params.plugins - Plugin instances to run finalizers on.
+ * @param {string} params.rawQuery - SQL with original file references and date/location tokens.
+ * @param {object[]} params.fileSettings - Pre-merge per-file settings from processQuery.
+ * @param {string[]} params.downloadedPaths - Absolute local paths of all downloaded files.
+ * @param {string} params.bucketsDir - Root directory where files are cached locally.
+ * @returns {string} Finalized SQL ready for DuckDB execution.
+ */
+function runFinalizers({ plugins, rawQuery, fileSettings, downloadedPaths, bucketsDir }) {
+  return plugins.reduce((query, plugin) => {
+    if (!plugin.finalizeQuery) return query;
+    return plugin.finalizeQuery(query, fileSettings, downloadedPaths, bucketsDir);
+  }, rawQuery);
 }
 
 /**

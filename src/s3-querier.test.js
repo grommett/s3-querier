@@ -2,7 +2,6 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert';
 
 import QueryParserPlugin from './plugins/query-parser/query-parser.js';
-import QueryFinalizerPlugin from './plugins/query-finalizer/query-finalizer.js';
 import { mergeSettings } from './utils/file-settings/file-settings.js';
 
 const DEFAULT_ENDPOINT = 'http://default-endpoint.com';
@@ -93,7 +92,7 @@ describe('s3-querier', () => {
 });
 
 function runQueryPipeline(query) {
-  const plugins = [new QueryParserPlugin(), new QueryFinalizerPlugin()];
+  const plugins = [new QueryParserPlugin()];
   const context = {
     endpoint: DEFAULT_ENDPOINT,
     defaultBucket: DEFAULT_BUCKET,
