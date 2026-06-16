@@ -25,6 +25,29 @@ Location tokens — override endpoint or bucket per path:
 Glob syntax — wildcard matching for non-time path segments:
   jobs/window=202308032130/*.parquet
 
+QUERYING TIME-PARTITIONED DATA OVER A RANGE
+
+When data is partitioned by time and you need multiple hours, days, or months, use date
+tokens in the SQL with `from`/`to` as separate parameters. ONE query with tokens downloads
+all matching files across the range — do not make multiple tool calls with hardcoded dates.
+
+  ✗ WRONG — three separate tool calls with hardcoded hours:
+      sql: SELECT * FROM read_parquet('events/year=2026/month=06/day=15/hour=12/data.parquet')
+      sql: SELECT * FROM read_parquet('events/year=2026/month=06/day=15/hour=13/data.parquet')
+      sql: SELECT * FROM read_parquet('events/year=2026/month=06/day=15/hour=14/data.parquet')
+
+  ✓ CORRECT — one tool call, tokens expand across all hours in the range:
+      sql:  SELECT * FROM read_parquet('events/year={yyyy}/month={MM}/day={dd}/hour={hh}/data.parquet', union_by_name=1)
+      from: 2026-06-15T12:00:00Z
+      to:   2026-06-15T14:59:59Z
+
+Tokens also expand inside the filename, not just in path directory segments:
+  data/year={yyyy}/month={MM}/day={dd}/hour={hh}/file_{yyyy}{MM}{dd}{hh}00.parquet
+  → s3-querier downloads one file per hour in the from/to range.
+
+Hardcoding a date is fine for a single known file or a fixed point-in-time lookup where
+you are not spanning multiple time segments.
+
 HIVE-PARTITIONED DATA
 
 For paths partitioned only by year and month (no day segment), use {yyyy} and {MM} together:
@@ -40,6 +63,11 @@ EXAMPLES
 
 Single file:
   SELECT * FROM read_parquet('reports/summary.parquet') LIMIT 10
+
+Hour-partitioned files — tokens in path and filename (requires from/to):
+  SELECT * FROM read_parquet(
+    'events/year={yyyy}/month={MM}/day={dd}/hour={hh}/file_{yyyy}{MM}{dd}{hh}00.parquet',
+    union_by_name=1)
 
 Day-partitioned files (requires from/to):
   SELECT id FROM read_parquet('events/year={yyyy}/month={MM}/day={dd}/data.parquet', union_by_name=1)
