@@ -10,6 +10,22 @@ describe('S3QuerierMCP', () => {
 
     assert.ok(toolNames.includes('query'));
     assert.ok(toolNames.includes('list_files'));
+    assert.ok(toolNames.includes('get_current_time'));
+  });
+
+  it('get_current_time returns a valid ISO 8601 UTC timestamp', async () => {
+    const { mcp, registrations } = await buildMcp();
+    await mcp.start();
+
+    const tool = registrations.tools.find(({ name }) => name === 'get_current_time');
+    const before = Date.now();
+    const result = tool.handler();
+    const after = Date.now();
+
+    const timestamp = result.content[0].text;
+    const parsed = new Date(timestamp).getTime();
+    assert.ok(parsed >= before && parsed <= after, 'timestamp should be current');
+    assert.ok(timestamp.endsWith('Z'), 'timestamp should be UTC');
   });
 
   it('registers the s3-querier-docs resource on start', async () => {

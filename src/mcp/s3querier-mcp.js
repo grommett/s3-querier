@@ -48,6 +48,11 @@ const DOCS_RESOURCE = {
   mimeType: 'text/markdown',
 };
 
+const GET_CURRENT_TIME_DESCRIPTION =
+  'Returns the current UTC time as an ISO 8601 timestamp. ' +
+  'Call this before constructing time-partitioned queries that involve "now", "recent", or a relative time range. ' +
+  'Not needed for static file queries or queries for a specific known date range.';
+
 export class S3QuerierMCP {
   constructor(config = {}) {
     this.config = config;
@@ -66,6 +71,11 @@ export class S3QuerierMCP {
       handleListFiles,
     );
     server.registerTool('query', { description: enrichedToolDescription, inputSchema: QUERY_TOOL_SCHEMA }, handleQuery);
+    server.registerTool(
+      'get_current_time',
+      { description: GET_CURRENT_TIME_DESCRIPTION, inputSchema: {} },
+      handleGetCurrentTime,
+    );
     (this.config.tools ?? []).forEach(({ name, description, inputSchema, handler }) => {
       server.registerTool(name, { description, inputSchema }, handler);
     });
@@ -75,6 +85,10 @@ export class S3QuerierMCP {
 }
 
 /** Helpers */
+
+function handleGetCurrentTime() {
+  return { content: [{ type: 'text', text: new Date().toISOString() }] };
+}
 
 function serveDocsHandler(uri) {
   return { contents: [{ uri: uri.href, text: docsContent, mimeType: 'text/markdown' }] };
