@@ -12,5 +12,10 @@ fetches all matching files across the range — never make multiple calls with h
   from: 2026-06-15T12:00:00Z
   to:   2026-06-15T19:59:59Z
 
+CURRENT TIME: If the query involves "now", "recent", "latest", or a relative time range,
+call `get_current_time` first to get the accurate current UTC time. Do not rely on training
+knowledge to guess the current date or time. This does not apply to static file queries or
+queries for a specific known date range.
+
 Read the `s3-querier://docs` resource or the `sql` parameter description for full token
 syntax, examples, and query planning tips before writing your first query.
