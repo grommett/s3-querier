@@ -4,7 +4,7 @@ import esmock from 'esmock';
 
 describe('handleListFiles', () => {
   it('returns directories, files, and truncated flag from S3', async () => {
-    const { handleListFiles } = await getMockedHandler({
+    const tool = await getMockedTool({
       s3Response: {
         CommonPrefixes: [{ Prefix: 'sales/' }],
         Contents: [{ Key: 'sales/data.csv', Size: 256 }],
@@ -12,7 +12,7 @@ describe('handleListFiles', () => {
       },
     });
 
-    const result = await handleListFiles({ prefix: 'sales/' });
+    const result = await tool.handler({ prefix: 'sales/' });
     const parsed = JSON.parse(result.content[0].text);
 
     assert.deepStrictEqual(parsed.directories, ['sales/']);
@@ -21,9 +21,9 @@ describe('handleListFiles', () => {
   });
 
   it('handles an empty S3 response with no contents or prefixes', async () => {
-    const { handleListFiles } = await getMockedHandler({ s3Response: {} });
+    const tool = await getMockedTool({ s3Response: {} });
 
-    const result = await handleListFiles({});
+    const result = await tool.handler({});
     const parsed = JSON.parse(result.content[0].text);
 
     assert.deepStrictEqual(parsed.directories, []);
@@ -32,18 +32,18 @@ describe('handleListFiles', () => {
   });
 
   it('sets truncated to true when the S3 response is truncated', async () => {
-    const { handleListFiles } = await getMockedHandler({
+    const tool = await getMockedTool({
       s3Response: { Contents: [], CommonPrefixes: [], IsTruncated: true },
     });
 
-    const result = await handleListFiles({});
+    const result = await tool.handler({});
     const parsed = JSON.parse(result.content[0].text);
 
     assert.strictEqual(parsed.truncated, true);
   });
 
   it('adds column schema to the first parquet file per directory only', async () => {
-    const { handleListFiles } = await getMockedHandler({
+    const tool = await getMockedTool({
       s3Response: {
         CommonPrefixes: [],
         Contents: [
@@ -56,7 +56,7 @@ describe('handleListFiles', () => {
       columns: ['id', 'name'],
     });
 
-    const result = await handleListFiles({});
+    const result = await tool.handler({});
     const { files } = JSON.parse(result.content[0].text);
 
     assert.deepStrictEqual(files[0].columns, ['id', 'name']); // first parquet in dir — representative
@@ -65,7 +65,7 @@ describe('handleListFiles', () => {
   });
 
   it('fetches schema independently for the first parquet in each distinct directory', async () => {
-    const { handleListFiles } = await getMockedHandler({
+    const tool = await getMockedTool({
       s3Response: {
         CommonPrefixes: [],
         Contents: [
@@ -77,7 +77,7 @@ describe('handleListFiles', () => {
       columns: ['ts', 'value'],
     });
 
-    const result = await handleListFiles({});
+    const result = await tool.handler({});
     const { files } = JSON.parse(result.content[0].text);
 
     assert.deepStrictEqual(files[0].columns, ['ts', 'value']);
@@ -85,9 +85,9 @@ describe('handleListFiles', () => {
   });
 });
 
-function getMockedHandler({ s3Response, columns = [] }) {
+async function getMockedTool({ s3Response, columns = [] }) {
   const mockS3Client = { send: () => Promise.resolve(s3Response) };
-  return esmock('./list-files.js', {
+  const { default: ListFilesTool } = await esmock('./list-files.js', {
     '@aws-sdk/client-s3': {
       ListObjectsV2Command: class ListObjectsV2Command {
         constructor(params) {
@@ -95,8 +95,9 @@ function getMockedHandler({ s3Response, columns = [] }) {
         }
       },
     },
-    '../../s3/s3.js': { buildS3Client: () => mockS3Client },
-    '../../utils/parquet-schema-reader.js': { readParquetColumns: () => Promise.resolve(columns) },
-    '../../s3-querier.js': { bigintReplacer: (_, val) => val },
+    '../../../s3/s3.js': { buildS3Client: () => mockS3Client },
+    '../../../utils/parquet-schema-reader.js': { readParquetColumns: () => Promise.resolve(columns) },
+    '../../../utils/bigint-replacer.js': { bigintReplacer: (_, val) => val },
   });
+  return new ListFilesTool({});
 }
