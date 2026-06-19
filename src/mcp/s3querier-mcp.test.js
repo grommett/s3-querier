@@ -35,7 +35,7 @@ describe('S3QuerierMCP', () => {
     assert.strictEqual(registrations.resources[0].name, 's3-querier-docs');
   });
 
-  it('includes dataset context in tool descriptions when datasets are configured', async () => {
+  it('includes dataset pointer in tool description and registers datasets resource when datasets are configured', async () => {
     const config = {
       datasets: [{ name: 'Sales', description: 'Sales data', bucket: 'sales-bucket', endpoint: 'http://s3.io' }],
     };
@@ -44,31 +44,36 @@ describe('S3QuerierMCP', () => {
 
     const queryTool = registrations.tools.find(({ name }) => name === 'query');
     const listFilesTool = registrations.tools.find(({ name }) => name === 'list_files');
+    const datasetsResource = registrations.resources.find(({ name }) => name === 's3-querier-datasets');
 
-    assert.ok(queryTool.config.description.includes('CONFIGURED DATASETS'));
-    assert.ok(queryTool.config.description.includes('Sales'));
-    assert.ok(queryTool.config.description.includes('sales-bucket'));
+    assert.ok(queryTool.config.description.includes('s3-querier://datasets'));
     assert.ok(listFilesTool.config.description.includes('CONFIGURED DATASETS'));
+    assert.ok(datasetsResource, 's3-querier-datasets resource should be registered');
+
+    const result = datasetsResource.handler({ href: 's3-querier://datasets' });
+    assert.ok(result.contents[0].text.includes('Sales'));
+    assert.ok(result.contents[0].text.includes('sales-bucket'));
   });
 
-  it('renders file schema in dataset context when schema is provided', async () => {
+  it('renders filePathTemplate in datasets resource when provided', async () => {
     const config = {
       datasets: [
         {
-          name: 'Sales',
-          files: {
-            orders: { description: 'Order records', schema: 'id (varchar), amount (float)' },
-            products: { description: 'Product catalog' },
-          },
+          name: 'cloud-resources',
+          filePathTemplate: 'year={yyyy}/month={MM}/day={dd}/hour={hh}/minute={mm}/{file}_*.parquet',
+          files: { loadBalancers: { description: 'Load balancer configurations' } },
         },
       ],
     };
     const { mcp, registrations } = await buildMcp(config);
     await mcp.start();
 
-    const queryTool = registrations.tools.find(({ name }) => name === 'query');
-    assert.ok(queryTool.config.description.includes('Schema: id (varchar), amount (float)'));
-    assert.ok(!queryTool.config.description.includes('Schema: undefined'));
+    const datasetsResource = registrations.resources.find(({ name }) => name === 's3-querier-datasets');
+    const result = datasetsResource.handler({ href: 's3-querier://datasets' });
+    assert.ok(
+      result.contents[0].text.includes('year={yyyy}/month={MM}/day={dd}/hour={hh}/minute={mm}/{file}_*.parquet'),
+    );
+    assert.ok(result.contents[0].text.includes('{file} = resource name from Files list'));
   });
 
   it('omits dataset context from tool descriptions when no datasets are configured', async () => {

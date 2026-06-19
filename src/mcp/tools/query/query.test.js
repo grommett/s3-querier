@@ -4,14 +4,15 @@ import esmock from 'esmock';
 
 describe('handleQuery', () => {
   it('returns query results as JSON in MCP text content format', async () => {
-    const { handleQuery } = await esmock('./query.js', {
-      '../../s3-querier.js': {
+    const { default: QueryTool } = await esmock('./query.js', {
+      '../../../s3-querier.js': {
         default: () => Promise.resolve([{ name: 'Alice', count: 5 }]),
         bigintReplacer: passThrough,
       },
     });
 
-    const result = await handleQuery({ sql: 'SELECT name, count FROM data' });
+    const tool = new QueryTool({});
+    const result = await tool.handler({ sql: 'SELECT name, count FROM data' });
 
     assert.deepStrictEqual(result, {
       content: [{ type: 'text', text: '[{"name":"Alice","count":5}]' }],
@@ -21,8 +22,8 @@ describe('handleQuery', () => {
   it('converts ISO date strings to millisecond timestamps', async () => {
     let capturedFrom;
     let capturedTo;
-    const { handleQuery } = await esmock('./query.js', {
-      '../../s3-querier.js': {
+    const { default: QueryTool } = await esmock('./query.js', {
+      '../../../s3-querier.js': {
         default: ({ from, to }) => {
           capturedFrom = from;
           capturedTo = to;
@@ -32,7 +33,8 @@ describe('handleQuery', () => {
       },
     });
 
-    await handleQuery({ sql: 'SELECT 1', from: '2025-01-01', to: '2025-01-31' });
+    const tool = new QueryTool({});
+    await tool.handler({ sql: 'SELECT 1', from: '2025-01-01', to: '2025-01-31' });
 
     assert.strictEqual(capturedFrom, new Date('2025-01-01').getTime());
     assert.strictEqual(capturedTo, new Date('2025-01-31').getTime());
@@ -41,8 +43,8 @@ describe('handleQuery', () => {
   it('omits from and to when not provided in the call', async () => {
     let capturedFrom;
     let capturedTo;
-    const { handleQuery } = await esmock('./query.js', {
-      '../../s3-querier.js': {
+    const { default: QueryTool } = await esmock('./query.js', {
+      '../../../s3-querier.js': {
         default: ({ from, to }) => {
           capturedFrom = from;
           capturedTo = to;
@@ -52,7 +54,8 @@ describe('handleQuery', () => {
       },
     });
 
-    await handleQuery({ sql: 'SELECT 1' });
+    const tool = new QueryTool({});
+    await tool.handler({ sql: 'SELECT 1' });
 
     assert.strictEqual(capturedFrom, undefined);
     assert.strictEqual(capturedTo, undefined);
