@@ -22,18 +22,6 @@ Location tokens — override endpoint or bucket per path:
   {endpoint:https://s3.example.com}
   {bucket:my-bucket}
 
-Glob syntax — wildcard matching for non-time file name segments within a known folder:
-  jobs/window=202308032130/*.parquet
-
-  Do NOT use globs on time-partitioned folder segments (year=, month=, day=, hour=, etc.).
-  A folder-level glob like hour=*/ matches every hour and causes massive over-fetching.
-  Use date tokens with from/to instead — they expand to exactly the hours/days needed:
-    ✗  data/year=2026/month=06/day=15/hour=*/file.parquet
-    ✓  data/year={yyyy}/month={MM}/day={dd}/hour={hh}/file.parquet  (with from/to)
-
-  Tokens and globs can be combined — tokens on folder segments, glob on the filename:
-    data/year={yyyy}/month={MM}/day={dd}/hour={hh}/records_*.parquet
-
 QUERYING TIME-PARTITIONED DATA OVER A RANGE
 
 When data is partitioned by time and you need multiple hours, days, or months, use date
@@ -88,3 +76,17 @@ Cross-endpoint join:
   WITH east AS (SELECT id FROM read_parquet('{endpoint:https://s3.us-east.example.com}/{bucket:logs}/data/{yyyy}{MM}{dd}.parquet'))
   SELECT * FROM read_parquet('{endpoint:https://s3.eu-west.example.com}/{bucket:logs}/data/{yyyy}{MM}{dd}.parquet') AS west
   JOIN east ON west.id = east.id
+
+GLOB SYNTAX (last resort — filename patterns only)
+
+Globs match non-time file name segments within a known folder:
+  jobs/window=202308032130/*.parquet
+
+  Do NOT use globs on time-partitioned folder segments (year=, month=, day=, hour=, etc.).
+  A folder-level glob like hour=*/ matches every hour and causes massive over-fetching.
+  Use date tokens with from/to instead — they expand to exactly the hours/days needed:
+    ✗  data/year=2026/month=06/day=15/hour=*/file.parquet
+    ✓  data/year={yyyy}/month={MM}/day={dd}/hour={hh}/file.parquet  (with from/to)
+
+  Tokens and globs can be combined — tokens on folder segments, glob on the filename:
+    data/year={yyyy}/month={MM}/day={dd}/hour={hh}/records_*.parquet
