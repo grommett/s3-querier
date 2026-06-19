@@ -161,7 +161,7 @@ const results = await s3Querier({
 
 ## MCP Server
 
-s3-querier ships a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes two tools to any MCP-compatible client (Claude Desktop, Claude Code, etc.):
+s3-querier ships a [Model Context Protocol](https://modelcontextprotocol.io/) server that exposes two tools to any MCP-compatible client (Claude Desktop, Claude Code, IBM Bob etc.):
 
 - **`query`** — runs a DuckDB SQL query against your S3 data
 - **`list_files`** — lists objects under a prefix so an LLM can discover available data
