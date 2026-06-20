@@ -191,7 +191,7 @@ claude mcp add s3-querier \
   -e S3_BUCKET=my-bucket \
   -e S3_ACCESS_KEY_ID=key \
   -e S3_SECRET_ACCESS_KEY=secret \
-  -- node node_modules/s3-querier/src/mcp/server.js
+  -- npx -y s3-querier
 ```
 
 **IBM Bob**
@@ -202,8 +202,8 @@ Add to `mcp_settings.json` (global, applies across all workspaces) or `.Bob/mcp.
 {
   "mcpServers": {
     "s3-querier": {
-      "command": "node",
-      "args": ["/absolute/path/to/node_modules/s3-querier/src/mcp/server.js"],
+      "command": "npx",
+      "args": ["-y", "s3-querier"],
       "env": {
         "S3_ENDPOINT": "https://s3.amazonaws.com",
         "S3_BUCKET": "my-bucket",
