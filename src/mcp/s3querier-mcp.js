@@ -33,11 +33,10 @@ export class S3QuerierMCP {
   }
 
   async start() {
-    const server = new McpServer({
-      name: 's3-querier',
-      version: pkg.version,
-      instructions: buildInstructions(this.config),
-    });
+    const server = new McpServer(
+      { name: 's3-querier', version: pkg.version },
+      { instructions: buildInstructions(this.config) },
+    );
     const transport = new StdioServerTransport();
 
     this.resourceClasses.forEach((ResourceClass) => {
