@@ -166,8 +166,8 @@ async function buildMcp(config = {}) {
   const state = { serverOptions: null };
 
   class MockMcpServer {
-    constructor(options) {
-      state.serverOptions = options;
+    constructor(serverInfo, options) {
+      state.serverOptions = { ...serverInfo, ...options };
     }
     registerTool(name, toolConfig, handler) {
       registrations.tools.push({ name, config: toolConfig, handler });
