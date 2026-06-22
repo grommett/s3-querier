@@ -667,6 +667,12 @@ class DefaultS3Client {
   }
 }
 
+const MockListObjectsV2Command = class ListObjectsV2Command {
+  constructor(params) {
+    Object.assign(this, params);
+  }
+};
+
 function getS3withMocks({
   mkdir = () => Promise.resolve(),
   writeFile = () => Promise.resolve(),
@@ -681,11 +687,10 @@ function getS3withMocks({
     'node:path': { dirname: () => {} },
     '@aws-sdk/client-s3': {
       S3Client: s3ClientClass,
-      ListObjectsV2Command: class ListObjectsV2Command {
-        constructor(params) {
-          Object.assign(this, params);
-        }
+      paginateListObjectsV2: async function* (paginatorConfig, input) {
+        yield await paginatorConfig.client.send(new MockListObjectsV2Command(input));
       },
+      ListObjectsV2Command: MockListObjectsV2Command,
       GetObjectCommand: class GetObjectCommand {
         constructor(params) {
           Object.assign(this, params);
