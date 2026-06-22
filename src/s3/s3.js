@@ -1,6 +1,6 @@
 import fsPromise from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, paginateListObjectsV2, GetObjectCommand } from '@aws-sdk/client-s3';
 
 import { logger } from '../utils/logger.js';
 import { datesInRange, hoursInRange, monthsInRange, buildPath } from '../utils/file-path-builder/file-path-builder.js';
@@ -250,16 +250,9 @@ export default class S3 {
     }
 
     const files = [];
-    let continuationToken;
-    do {
-      const response = await this.s3.send(
-        new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, ContinuationToken: continuationToken }),
-      );
-      response.Contents?.forEach((content) => {
-        files.push({ file: content.Key, size: content.Size });
-      });
-      continuationToken = response.NextContinuationToken;
-    } while (continuationToken);
+    for await (const page of paginateListObjectsV2({ client: this.s3 }, { Bucket: this.bucket, Prefix: prefix })) {
+      page.Contents?.forEach((content) => files.push({ file: content.Key, size: content.Size }));
+    }
 
     this.listingCache.set(cacheKey, files);
     return files;
