@@ -40,6 +40,43 @@ describe('handleQuery', () => {
     assert.strictEqual(capturedTo, new Date('2025-01-31').getTime());
   });
 
+  it('passes plugins from config to s3Querier', async () => {
+    let capturedPlugins;
+    const { default: QueryTool } = await esmock('./query.js', {
+      '../../../s3-querier.js': {
+        default: ({ plugins }) => {
+          capturedPlugins = plugins;
+          return Promise.resolve([]);
+        },
+        bigintReplacer: passThrough,
+      },
+    });
+
+    const fakePlugin = { processQuery: (ctx) => ctx };
+    const tool = new QueryTool({ plugins: [fakePlugin] });
+    await tool.handler({ sql: 'SELECT 1' });
+
+    assert.deepStrictEqual(capturedPlugins, [fakePlugin]);
+  });
+
+  it('passes an empty plugins array when config has none', async () => {
+    let capturedPlugins;
+    const { default: QueryTool } = await esmock('./query.js', {
+      '../../../s3-querier.js': {
+        default: ({ plugins }) => {
+          capturedPlugins = plugins;
+          return Promise.resolve([]);
+        },
+        bigintReplacer: passThrough,
+      },
+    });
+
+    const tool = new QueryTool({});
+    await tool.handler({ sql: 'SELECT 1' });
+
+    assert.deepStrictEqual(capturedPlugins, []);
+  });
+
   it('omits from and to when not provided in the call', async () => {
     let capturedFrom;
     let capturedTo;
