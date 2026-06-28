@@ -141,16 +141,82 @@ Downloaded files are cached to `bucketsDir` on disk. Subsequent queries that ref
 
 ## Plugins
 
-The `plugins` option accepts an array of plugin objects that can extend query parsing and file processing. A plugin may implement:
+The `plugins` option accepts an array of plugin objects. Plugins can hook into every phase of query execution — from S3 listing through download to SQL execution.
 
-- `processQuery(context)` — transform the query context before execution
-- `processFile(filePath)` — process each downloaded file (e.g. convert Avro to JSON)
+### Plugin interface
 
-The built-in Avro plugin is an example:
+| Method | Phase | Description |
+| --- | --- | --- |
+| `processQuery(context)` | pre-download | Transform the query context. Return the (possibly mutated) context. |
+| `finalizeQuery(query, fileSettings, downloadedPaths, bucketsDir)` | post-download | Rewrite the SQL string after downloads complete. Return the final SQL. |
+| `preListFiles({ prefix, bucket })` | S3 listing | Called before listing. Return a callback or nothing. |
+| `preDownloadFiles({ bucket, from, to })` | S3 download | Called before downloading. Return a callback or nothing. |
+| `preQuery({ sql, downloadedPaths, bucketsDir })` | DuckDB execution | Called before the query runs. Return a callback or nothing. |
+| `postQuery({ result, downloadedPaths, bucketsDir })` | DuckDB execution | Called after the query completes. |
+
+The `pre*` methods use a closure pattern: return a callback to receive the after-state for that phase. This lets you capture a start timestamp and receive the result in one place without shared mutable variables:
 
 ```js
-import s3Querier from 's3-querier';
-import AvroPlugin from 's3-querier/src/plugins/avro/avro-plugin.js';
+preQuery({ sql }) {
+  const start = Date.now();
+  return ({ result }) => {
+    console.log(`Query took ${Date.now() - start}ms — ${result.length} rows`);
+  };
+}
+```
+
+Post-phase callbacks are fire-and-forget — errors are logged and swallowed, so a failing plugin never rejects the caller's query.
+
+### FSPurgePlugin
+
+`FSPurgePlugin` sweeps the local file cache after each query, evicting files that haven't been accessed recently. Import it alongside the default export:
+
+```js
+import s3Querier, { FSPurgePlugin } from 's3-querier';
+
+const purgePlugin = new FSPurgePlugin({
+  bucketsDir: '/tmp/s3-cache',
+  lastAccessTTLMinutes: 60, // evict files not accessed in the last hour (default: 60)
+  refreshIntervalMin: 60,   // minimum minutes between sweeps (default: 60)
+});
+
+const results = await s3Querier({
+  // ...
+  plugins: [purgePlugin],
+});
+```
+
+### StatsPlugin
+
+`StatsPlugin` fires a single `onStats` callback for listing, download, and query events. Use it for logging, metrics, or custom dashboards:
+
+```js
+import s3Querier, { StatsPlugin } from 's3-querier';
+
+const statsPlugin = new StatsPlugin((event) => console.log(event));
+
+await s3Querier({ /* ... */ plugins: [statsPlugin] });
+// { type: 'listing',  prefix, bucket, fileCount, durationMs, cacheHit }
+// { type: 'download', bucket, from, to, cacheHits, cacheMisses, enqueuedHits, bytesDownloaded, durationMs }
+// { type: 'query',    sql, durationMs, rowCount }
+```
+
+Each call fires a single event with a discriminated `type`:
+
+| `type` | Fields |
+| --- | --- |
+| `'listing'` | `prefix`, `bucket`, `fileCount`, `durationMs`, `cacheHit` |
+| `'download'` | `bucket`, `from`, `to`, `cacheHits`, `cacheMisses`, `enqueuedHits`, `bytesDownloaded`, `durationMs` |
+| `'query'` | `sql`, `durationMs`, `rowCount` |
+
+Events fire independently — one listing event per S3 prefix, one download event per bucket per query, one query event per execution. Aggregation is left to the caller.
+
+### AvroPlugin
+
+The built-in Avro plugin converts Avro files to JSON before querying:
+
+```js
+import s3Querier, { AvroPlugin } from 's3-querier';
 
 const results = await s3Querier({
   // ...
