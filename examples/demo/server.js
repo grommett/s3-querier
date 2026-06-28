@@ -2,11 +2,12 @@ import express from 'express';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import s3Querier, { bigintReplacer, FSPurgePlugin } from '../../src/s3-querier.js';
+import s3Querier, { bigintReplacer, FSPurgePlugin, StatsPlugin } from '../../src/s3-querier.js';
 
 const PORT = 3000;
 const BUCKETS_DIR = join(tmpdir(), 's3-querier-demo');
 const purgePlugin = new FSPurgePlugin({ bucketsDir: BUCKETS_DIR });
+const statsPlugin = new StatsPlugin((event) => console.log('[stats]', event));
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
@@ -27,7 +28,7 @@ app.post('/query', async (req, res) => {
       secretAccessKey: apiKey ? undefined : secretAccessKey,
       apiKey: apiKey || undefined,
       format: isColumnar ? undefined : 'jsonRecords',
-      plugins: [purgePlugin],
+      plugins: [purgePlugin, statsPlugin],
     });
     const payload = isColumnar ? { columns: result } : { rows: result };
     res.setHeader('Content-Type', 'application/json');

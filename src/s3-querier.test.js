@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import esmock from 'esmock';
 
 import QueryParserPlugin from './plugins/query-parser/query-parser.js';
+import StatsPlugin from './plugins/stats/stats-plugin.js';
 import { mergeSettings } from './utils/file-settings/file-settings.js';
 
 const DEFAULT_ENDPOINT = 'http://default-endpoint.com';
@@ -98,6 +99,50 @@ describe('s3-querier', () => {
     });
   });
 
+  describe('preDownloadFiles', () => {
+    it('calls preDownloadFiles with bucket, from, and to', async (context) => {
+      const preDownloadSpy = context.mock.fn(() => null);
+      const plugin = { processQuery: (ctx) => ctx, preDownloadFiles: preDownloadSpy };
+
+      const { default: s3Querier } = await getMockedQuerier();
+      await s3Querier({ ...MOCK_QUERY_OPTIONS, from: 1000, to: 2000, plugins: [plugin] });
+
+      assert.equal(preDownloadSpy.mock.callCount(), 1);
+      const [callArgs] = preDownloadSpy.mock.calls[0].arguments;
+      assert.equal(callArgs.bucket, 'my-bucket');
+      assert.equal(callArgs.from, 1000);
+      assert.equal(callArgs.to, 2000);
+    });
+
+    it('calls the callback returned by preDownloadFiles with stats', async (context) => {
+      const callbackSpy = context.mock.fn();
+      const plugin = { processQuery: (ctx) => ctx, preDownloadFiles: () => callbackSpy };
+
+      const { default: s3Querier } = await getMockedQuerier();
+      await s3Querier({ ...MOCK_QUERY_OPTIONS, plugins: [plugin] });
+
+      assert.equal(callbackSpy.mock.callCount(), 1);
+      const [callArgs] = callbackSpy.mock.calls[0].arguments;
+      assert.equal(callArgs.bucket, 'my-bucket');
+      assert.ok('cacheHits' in callArgs);
+      assert.ok('cacheMisses' in callArgs);
+      assert.ok('bytesDownloaded' in callArgs);
+      assert.ok('durationMs' in callArgs);
+    });
+
+    it('does not reject the query result when the preDownloadFiles callback throws', async () => {
+      const plugin = {
+        processQuery: (ctx) => ctx,
+        preDownloadFiles: () => () => Promise.reject(new Error('callback error')),
+      };
+
+      const { default: s3Querier } = await getMockedQuerier();
+      const result = await s3Querier({ ...MOCK_QUERY_OPTIONS, plugins: [plugin] });
+
+      assert.deepStrictEqual(result, MOCK_RESULT);
+    });
+  });
+
   describe('preQuery', () => {
     it('calls preQuery with sql, downloadedPaths, and bucketsDir', async (context) => {
       const preQuerySpy = context.mock.fn(() => null);
@@ -167,11 +212,88 @@ describe('s3-querier', () => {
   });
 });
 
+describe('StatsPlugin', () => {
+  it('fires a listing event for each prefix listing', async () => {
+    const events = [];
+    const plugin = new StatsPlugin((event) => events.push(event));
+
+    const { default: s3Querier } = await getMockedQuerier();
+    await s3Querier({ ...MOCK_QUERY_OPTIONS, plugins: [plugin] });
+
+    const listingEvents = events.filter((event) => event.type === 'listing');
+    assert.equal(listingEvents.length, 1);
+    assert.equal(listingEvents[0].bucket, 'my-bucket');
+    assert.ok(typeof listingEvents[0].fileCount === 'number');
+    assert.ok(typeof listingEvents[0].durationMs === 'number');
+    assert.ok(typeof listingEvents[0].cacheHit === 'boolean');
+  });
+
+  it('fires a download event per bucket', async () => {
+    const events = [];
+    const plugin = new StatsPlugin((event) => events.push(event));
+
+    const { default: s3Querier } = await getMockedQuerier();
+    await s3Querier({ ...MOCK_QUERY_OPTIONS, plugins: [plugin] });
+
+    const downloadEvents = events.filter((event) => event.type === 'download');
+    assert.equal(downloadEvents.length, 1);
+    assert.equal(downloadEvents[0].bucket, 'my-bucket');
+    assert.ok(typeof downloadEvents[0].cacheHits === 'number');
+    assert.ok(typeof downloadEvents[0].cacheMisses === 'number');
+    assert.ok(typeof downloadEvents[0].bytesDownloaded === 'number');
+    assert.ok(typeof downloadEvents[0].durationMs === 'number');
+  });
+
+  it('fires a query event with durationMs and rowCount', async () => {
+    const events = [];
+    const plugin = new StatsPlugin((event) => events.push(event));
+
+    const { default: s3Querier } = await getMockedQuerier();
+    await s3Querier({ ...MOCK_QUERY_OPTIONS, plugins: [plugin] });
+
+    const queryEvents = events.filter((event) => event.type === 'query');
+    assert.equal(queryEvents.length, 1);
+    assert.ok(typeof queryEvents[0].sql === 'string');
+    assert.ok(typeof queryEvents[0].durationMs === 'number');
+    assert.ok(typeof queryEvents[0].rowCount === 'number');
+  });
+});
+
 function getMockedQuerier() {
   return esmock('./s3-querier.js', {
     './s3/s3.js': {
       default: class {
-        downloadFiles() {
+        constructor({ plugins }) {
+          this.plugins = plugins || [];
+        }
+        downloadFiles({ from, to }) {
+          const listCallbacks = this.plugins.map(
+            (plugin) => plugin.preListFiles?.({ prefix: 'data.parquet', bucket: 'my-bucket' }) ?? null,
+          );
+          listCallbacks.forEach((cb) => {
+            if (cb)
+              Promise.resolve(
+                cb({ files: [{ file: 'data.parquet', size: 1000 }], durationMs: 5, cacheHit: false }),
+              ).catch(() => {});
+          });
+
+          const downloadCallbacks = this.plugins.map(
+            (plugin) => plugin.preDownloadFiles?.({ bucket: 'my-bucket', from, to }) ?? null,
+          );
+          downloadCallbacks.forEach((cb) => {
+            if (cb)
+              Promise.resolve(
+                cb({
+                  cacheHits: 1,
+                  cacheMisses: 0,
+                  enqueuedHits: 0,
+                  bytesDownloaded: 0,
+                  durationMs: 10,
+                  bucket: 'my-bucket',
+                }),
+              ).catch(() => {});
+          });
+
           return Promise.resolve(['/tmp/my-bucket/data.parquet']);
         }
       },

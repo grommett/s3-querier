@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { S3Client, paginateListObjectsV2, GetObjectCommand } from '@aws-sdk/client-s3';
 
 import { logger } from '../utils/logger.js';
+import { runPreListFiles, runPostListFiles, runPreDownloadFiles, runPostDownloadFiles } from '../plugins/lifecycle.js';
 import { datesInRange, hoursInRange, monthsInRange, buildPath } from '../utils/file-path-builder/file-path-builder.js';
 import { regexFromPattern } from '../utils/date-regex/date-regex.js';
 import { buildIbmIamClient } from './auth/ibm-iam-client.js';
@@ -44,16 +45,25 @@ export default class S3 {
    * @returns {PromiseSettledResult<string[]>} Promise result for each file downloaded
    */
   async downloadFiles({ from, to, filePatterns = [], staticFiles = [] }) {
-    const startListing = new Date();
-    const listPromises = filePatterns.map((pattern) => {
-      return this.getFilePathsFromPrefixes(from, to, pattern);
-    });
-    const filePaths = await Promise.allSettled(listPromises).then((fileList) => {
-      return fileList.map((list) => list.value).flat();
+    const listPromises = filePatterns.map((pattern) => this.getFilePathsFromPrefixes(from, to, pattern));
+    const filePaths = await Promise.allSettled(listPromises).then((fileList) =>
+      fileList.map((list) => list.value).flat(),
+    );
+    const stats = { start: new Date(), cacheHits: 0, cacheMisses: 0, enqueuedHits: 0, bytesDownloaded: 0 };
+    const downloadCallbacks = runPreDownloadFiles(this.plugins, { bucket: this.bucket, from, to });
+    const downloadedPaths = await this.downloadFileList([...filePaths, ...staticFiles], stats);
+    const durationMs = new Date() - stats.start;
+
+    runPostDownloadFiles(downloadCallbacks, {
+      cacheHits: stats.cacheHits,
+      cacheMisses: stats.cacheMisses,
+      enqueuedHits: stats.enqueuedHits,
+      bytesDownloaded: stats.bytesDownloaded,
+      durationMs,
+      bucket: this.bucket,
     });
 
-    logger.info(`Total listing time: ${(new Date() - startListing) / 1000}s`);
-    return this.downloadFileList([...filePaths, ...staticFiles]);
+    return downloadedPaths;
   }
 
   /**
@@ -62,30 +72,14 @@ export default class S3 {
    * @param {string[]} filePaths A list of files to download
    * @returns {PromiseSettledResult} A Promise that resolves to an array of file paths
    */
-  downloadFileList(filePaths = []) {
-    logger.info(`Starting downloads for ${filePaths.length} files`);
+  downloadFileList(filePaths = [], stats = { cacheHits: 0, cacheMisses: 0, enqueuedHits: 0, bytesDownloaded: 0 }) {
     this.preFlightCheck(filePaths);
 
-    const stats = {
-      start: new Date(),
-      cacheHits: 0,
-      cacheMisses: 0,
-      enqueuedHits: 0,
-      bytesDownloaded: 0,
-    };
     const filesPromises = this.startDownloads(stats, filePaths);
 
     return Promise.allSettled(filesPromises)
-      .then((results) => {
-        return results
-          .filter((result) => {
-            return result.value;
-          })
-          .map((result) => result.value);
-      })
-      .then(this.logStatistics(stats))
-      .then(this.resetEnqueued)
-      .then((results) => results);
+      .then((results) => results.filter((result) => result.value).map((result) => result.value))
+      .then(this.resetEnqueued);
   }
 
   /**
@@ -245,8 +239,19 @@ export default class S3 {
    */
   async listFiles(prefix) {
     const cacheKey = `${this.bucket}/${prefix}`;
+    const start = new Date();
+    const listCallbacks = runPreListFiles(this.plugins, { prefix, bucket: this.bucket });
+
     if (this.listingCache.has(cacheKey)) {
-      return this.listingCache.get(cacheKey);
+      const files = this.listingCache.get(cacheKey);
+      runPostListFiles(listCallbacks, {
+        prefix,
+        bucket: this.bucket,
+        files,
+        durationMs: new Date() - start,
+        cacheHit: true,
+      });
+      return files;
     }
 
     const files = [];
@@ -255,6 +260,13 @@ export default class S3 {
     }
 
     this.listingCache.set(cacheKey, files);
+    runPostListFiles(listCallbacks, {
+      prefix,
+      bucket: this.bucket,
+      files,
+      durationMs: new Date() - start,
+      cacheHit: false,
+    });
     return files;
   }
 
@@ -274,26 +286,6 @@ export default class S3 {
       }
     });
     return fileDLPromises;
-  }
-
-  /**
-   * Logs download statistics
-   *
-   * @param {object} stats A statistics object
-   * @returns {(PromiseSettledResult) => PromiseSettledResult}
-   */
-  logStatistics(stats) {
-    return (results) => {
-      const mbDownloaded = stats.bytesDownloaded !== 0 ? stats.bytesDownloaded / (1024 * 1024) : 0;
-      const seconds = (new Date() - stats.start) / 1000;
-      const mbPerSecond = mbDownloaded / seconds;
-
-      logger.info(`Enqueued keys: ${this.enqueuedFiles.size}`);
-      logger.info(
-        `Download completed in: ${seconds} seconds. Cache hits: ${stats.cacheHits}. Cache misses: ${stats.cacheMisses}. Enqueued hits: ${stats.enqueuedHits}. MB downloaded: ${mbDownloaded}. MB/s ${mbPerSecond}`,
-      );
-      return results;
-    };
   }
 
   /**

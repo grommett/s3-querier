@@ -20,19 +20,13 @@ const formatStrategies = {
  */
 export async function query(sql, options = {}) {
   const { format } = options;
-  const queryStart = new Date();
-
   try {
     const connection = await db.connect();
     const reader = await connection.runAndReadAll(sql);
     const columnsResult = reader.getColumnsObjectJS();
 
     const formatter = formatStrategies[format] ?? formatStrategies.default;
-    const result = formatter(columnsResult);
-
-    const queryTime = new Date() - queryStart;
-    logger.info(`Query completed in : ${queryTime / 1000} seconds`);
-    return result ?? [];
+    return formatter(columnsResult) ?? [];
   } catch (error) {
     logger.error(error);
     throw error;
