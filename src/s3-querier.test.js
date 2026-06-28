@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
+import esmock from 'esmock';
 
 import QueryParserPlugin from './plugins/query-parser/query-parser.js';
 import { mergeSettings } from './utils/file-settings/file-settings.js';
@@ -7,6 +8,13 @@ import { mergeSettings } from './utils/file-settings/file-settings.js';
 const DEFAULT_ENDPOINT = 'http://default-endpoint.com';
 const DEFAULT_BUCKET = 'default-bucket';
 const BUCKETS_DIR = '/mnt/s3';
+const MOCK_RESULT = [{ name: 'col', fields: [1] }];
+const MOCK_QUERY_OPTIONS = {
+  query: `SELECT * FROM read_parquet('{bucket:my-bucket}/data.parquet')`,
+  bucketsDir: '/tmp',
+  defaultEndpoint: 'http://localhost',
+  defaultBucket: 'my-bucket',
+};
 
 describe('s3-querier', () => {
   describe('query to download settings', () => {
@@ -89,7 +97,53 @@ describe('s3-querier', () => {
       ]);
     });
   });
+
+  describe('postQuery', () => {
+    it('calls postQuery with result, downloadedPaths, and bucketsDir', async (context) => {
+      const postQuerySpy = context.mock.fn();
+      const plugin = { processQuery: (ctx) => ctx, postQuery: postQuerySpy };
+
+      const { default: s3Querier } = await getMockedQuerier();
+      await s3Querier({ ...MOCK_QUERY_OPTIONS, plugins: [plugin] });
+
+      assert.equal(postQuerySpy.mock.callCount(), 1);
+      const [callArgs] = postQuerySpy.mock.calls[0].arguments;
+      assert.deepStrictEqual(callArgs.result, MOCK_RESULT);
+      assert.deepStrictEqual(callArgs.downloadedPaths, ['/tmp/my-bucket/data.parquet']);
+      assert.equal(callArgs.bucketsDir, '/tmp');
+    });
+
+    it('does not reject the query result when postQuery throws', async () => {
+      const plugin = {
+        processQuery: (ctx) => ctx,
+        postQuery: () => Promise.reject(new Error('plugin error')),
+      };
+
+      const { default: s3Querier } = await getMockedQuerier();
+      const result = await s3Querier({ ...MOCK_QUERY_OPTIONS, plugins: [plugin] });
+
+      assert.deepStrictEqual(result, MOCK_RESULT);
+    });
+  });
 });
+
+function getMockedQuerier() {
+  return esmock('./s3-querier.js', {
+    './s3/s3.js': {
+      default: class {
+        downloadFiles() {
+          return Promise.resolve(['/tmp/my-bucket/data.parquet']);
+        }
+      },
+    },
+    './duck-db/index.js': {
+      query: () => Promise.resolve(MOCK_RESULT),
+    },
+    './utils/logger.js': {
+      logger: { error: () => {}, info: () => {} },
+    },
+  });
+}
 
 function runQueryPipeline(query) {
   const plugins = [new QueryParserPlugin()];

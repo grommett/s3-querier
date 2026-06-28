@@ -2,10 +2,12 @@ import { LRUCache } from 'lru-cache';
 
 import S3 from './s3/s3.js';
 export { bigintReplacer } from './utils/bigint-replacer.js';
+import { logger } from './utils/logger.js';
 import { mergeSettings } from './utils/file-settings/file-settings.js';
 import { query as execQuery } from './duck-db/index.js';
 import QueryParserPlugin from './plugins/query-parser/query-parser.js';
 import QueryFinalizerPlugin from './plugins/query-finalizer/query-finalizer.js';
+export { default as FSPurgePlugin } from './plugins/fs-purge/fs-purge-plugin.js';
 
 const listingCache = new LRUCache({ max: 1000 });
 
@@ -68,7 +70,10 @@ export default function s3Querier({
     });
     const downloadedPaths = results.flatMap((result) => result.value);
     const finalQuery = runFinalizers({ plugins: systemPlugins, rawQuery, fileSettings, downloadedPaths, bucketsDir });
-    return execQuery(finalQuery, { format });
+    return execQuery(finalQuery, { format }).then((result) => {
+      runPostQuery(systemPlugins, { result, downloadedPaths, bucketsDir });
+      return result;
+    });
   });
 }
 
@@ -134,5 +139,11 @@ function startDownloads({ to, from, downloadSettings, bucketsDir, apiKey, access
       plugins,
     });
     return s3.downloadFiles({ to: Number(to), from: Number(from), filePatterns, staticFiles });
+  });
+}
+
+function runPostQuery(plugins, context) {
+  plugins.forEach((plugin) => {
+    if (plugin.postQuery) Promise.resolve(plugin.postQuery(context)).catch((error) => logger.error(error));
   });
 }
