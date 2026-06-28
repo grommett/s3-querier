@@ -243,6 +243,8 @@ s3-querier ships a [Model Context Protocol](https://modelcontextprotocol.io/) se
 | `S3_SECRET_ACCESS_KEY` | ✓ * | HMAC secret key |
 | `S3_API_KEY` | ✓ * | IBM IAM API key (alternative to HMAC) |
 | `S3_BUCKETS_DIR` | | Local cache directory (default `/tmp/s3-querier`) |
+| `S3_PURGE_CACHE` | | Set to `false` to disable automatic file cache purging (default `true`) |
+| `S3_PURGE_TTL_MINUTES` | | Minutes since last access before a cached file is evicted (default `60`) |
 
 \* Either HMAC pair **or** `S3_API_KEY` is required.
 
@@ -380,6 +382,25 @@ new S3QuerierMCP({
   additionalInstructions: 'Data is updated hourly. For recent data, set from to 2 hours before current time and to to current time.',
 }).start();
 ```
+
+#### Plugins
+
+Pass a `plugins` array to enable `FSPurgePlugin`, `StatsPlugin`, or any custom plugin for every query the server handles:
+
+```js
+import { S3QuerierMCP } from 's3-querier/mcp';
+import { FSPurgePlugin, StatsPlugin } from 's3-querier';
+
+new S3QuerierMCP({
+  datasets: [ /* ... */ ],
+  plugins: [
+    new FSPurgePlugin({ bucketsDir: '/tmp/s3-querier', lastAccessTTLMinutes: 120 }),
+    new StatsPlugin((event) => console.error(event)),
+  ],
+}).start();
+```
+
+The built-in server (`npx s3-querier`) runs `FSPurgePlugin` and `StatsPlugin` by default. When extending with `S3QuerierMCP`, plugins are opt-in.
 
 ### Adding custom tools
 
