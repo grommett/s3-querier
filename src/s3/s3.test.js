@@ -402,23 +402,6 @@ describe('S3', () => {
     });
   });
 
-  describe('logStatistics', () => {
-    it('returns the original results array', () => {
-      const s3 = new S3({
-        accessKeyId: '123',
-        secretAccessKey: 'secret',
-        endpoint: 'http://s3.com',
-        bucket: 'test',
-        plugins: [],
-      });
-      const results = ['./file1.parquet', './file2.parquet'];
-      const stats = { start: new Date(), bytesDownloaded: 1024 * 1024, cacheHits: 1, cacheMisses: 1, enqueuedHits: 0 };
-      const logFn = s3.logStatistics(stats);
-
-      assert.strictEqual(logFn(results), results);
-    });
-  });
-
   describe('startDownloads', () => {
     it('increments enqueuedHits when a file is already being downloaded', () => {
       const s3 = new S3({

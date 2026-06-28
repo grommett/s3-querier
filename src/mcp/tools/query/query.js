@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 
 import BaseTool from '../base-tool.js';
-import s3Querier, { bigintReplacer, FSPurgePlugin } from '../../../s3-querier.js';
+import s3Querier, { bigintReplacer, FSPurgePlugin, StatsPlugin } from '../../../s3-querier.js';
+import { logger } from '../../../utils/logger.js';
 
 const {
   S3_ACCESS_KEY_ID,
@@ -14,6 +15,7 @@ const {
 } = process.env;
 
 const purgePlugin = new FSPurgePlugin({ bucketsDir: S3_BUCKETS_DIR });
+const statsPlugin = new StatsPlugin((event) => logger.info(event));
 
 const sqlDescription = readFileSync(new URL('../../descriptions/sql-param.md', import.meta.url), 'utf8');
 const toolDescription = readFileSync(new URL('../../descriptions/tool.md', import.meta.url), 'utf8');
@@ -61,7 +63,7 @@ export default class QueryTool extends BaseTool {
       accessKeyId: S3_ACCESS_KEY_ID,
       secretAccessKey: S3_SECRET_ACCESS_KEY,
       format: 'jsonRecords',
-      plugins: [purgePlugin],
+      plugins: [purgePlugin, statsPlugin],
     });
 
     return {

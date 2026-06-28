@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import s3Querier from '../src/s3-querier.js';
+import s3Querier, { StatsPlugin } from '../src/s3-querier.js';
 
 const ENDPOINT = 'http://localhost:9000';
 const BUCKET = 'test-bucket';
@@ -14,6 +14,7 @@ const SECRET_KEY = 'test-secret-key';
 
 const FROM = new Date('2024-01-01').getTime();
 const TO = new Date('2024-12-31').getTime();
+const statsPlugin = new StatsPlugin((event) => console.log(`[stats] ${new Date().toISOString()}`, event));
 
 function query(sql) {
   return s3Querier({
@@ -22,7 +23,7 @@ function query(sql) {
     defaultEndpoint: ENDPOINT,
     defaultBucket: BUCKET,
     bucketsDir,
-    plugins: [],
+    plugins: [statsPlugin],
     from: FROM,
     to: TO,
     query: sql,
@@ -333,6 +334,49 @@ describe('s3-querier e2e', () => {
       assert.deepStrictEqual(result2[0], { id: 1, event_type: 'login', region: 'us-east', value: 42.5 });
     } finally {
       await rm(concurrentDir, { recursive: true });
+    }
+  });
+
+  it('StatsPlugin fires listing, download, and query events', async () => {
+    const events = [];
+    const stats = new StatsPlugin((event) => events.push(event));
+    const statsDir = await mkdtemp(join(tmpdir(), 's3-e2e-stats-'));
+
+    try {
+      await s3Querier({
+        accessKeyId: ACCESS_KEY,
+        secretAccessKey: SECRET_KEY,
+        defaultEndpoint: ENDPOINT,
+        defaultBucket: BUCKET,
+        bucketsDir: statsDir,
+        plugins: [stats],
+        from: new Date('2024-01-14T00:00:00Z').getTime(),
+        to: new Date('2024-01-15T23:59:59Z').getTime(),
+        query: `SELECT * FROM read_parquet('events/year={yyyy}/month={MM}/day={dd}/data.parquet') ORDER BY day, id`,
+        format: 'jsonRecords',
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const listingEvents = events.filter((event) => event.type === 'listing');
+      const downloadEvents = events.filter((event) => event.type === 'download');
+      const queryEvents = events.filter((event) => event.type === 'query');
+
+      assert.ok(listingEvents.length > 0, 'expected at least one listing event');
+      assert.ok(listingEvents.every((event) => typeof event.durationMs === 'number'));
+      assert.ok(listingEvents.every((event) => typeof event.cacheHit === 'boolean'));
+
+      assert.strictEqual(downloadEvents.length, 1);
+      assert.strictEqual(downloadEvents[0].bucket, BUCKET);
+      assert.ok(typeof downloadEvents[0].cacheHits === 'number');
+      assert.ok(typeof downloadEvents[0].cacheMisses === 'number');
+      assert.ok(typeof downloadEvents[0].durationMs === 'number');
+
+      assert.strictEqual(queryEvents.length, 1);
+      assert.ok(typeof queryEvents[0].durationMs === 'number');
+      assert.strictEqual(queryEvents[0].rowCount, 6);
+    } finally {
+      await rm(statsDir, { recursive: true });
     }
   });
 
