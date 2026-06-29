@@ -317,9 +317,9 @@ describe('S3', () => {
       const now = new Date();
       const pattern = 'year={yyyy}/month={MM}/day={dd}/my-file_{yyyy}{MM}{dd}{hh}{mm}{ss}';
       const expected = 'year={yyyy}/month={MM}/day={dd}'
-        .replace('{yyyy}', now.getFullYear())
-        .replace('{MM}', String(now.getMonth() + 1).padStart(2, '0'))
-        .replace('{dd}', String(now.getDate()).padStart(2, '0'));
+        .replace('{yyyy}', now.getUTCFullYear())
+        .replace('{MM}', String(now.getUTCMonth() + 1).padStart(2, '0'))
+        .replace('{dd}', String(now.getUTCDate()).padStart(2, '0'));
       const actual = s3.getTodayPrefix(pattern);
 
       assert.deepEqual(actual, expected);
@@ -329,9 +329,9 @@ describe('S3', () => {
   describe('evictTodayFromListingCache', () => {
     it('removes all cache entries that start with today day-level prefix', () => {
       const now = new Date();
-      const yyyy = now.getFullYear();
-      const MM = String(now.getMonth() + 1).padStart(2, '0');
-      const dd = String(now.getDate()).padStart(2, '0');
+      const yyyy = now.getUTCFullYear();
+      const MM = String(now.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(now.getUTCDate()).padStart(2, '0');
       const listingCache = new Map([
         [`bucket/prefix/year=${yyyy}/month=${MM}/day=${dd}/hour=14/`, [{ file: 'a.parquet', size: 1 }]],
         [`bucket/prefix/year=${yyyy}/month=${MM}/day=${dd}/hour=15/`, [{ file: 'b.parquet', size: 1 }]],
